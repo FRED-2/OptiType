@@ -44,6 +44,54 @@ Please do not change the folder structure or make sure you changed the necessary
 entries in the config file.
 
 
+Step-by-Step Installation Guide:
+-------------
+1) Install Python 2.7 on your system  
+Either download it from https://www.python.org/download/ or just install it by easy_install e.g. depending on your system  
+
+***The following installation steps require a working pip installation on your system.***
+
+2) Install the Biopython package (https://pypi.python.org/pypi/biopython)
+```
+pip install biopython
+```
+
+3) Install the Coopr python package (https://pypi.python.org/pypi/Coopr)
+```
+pip install Coopr
+```
+
+4) Install the Matplotlib python package (https://pypi.python.org/pypi/matplotlib)
+```
+pip install matplotlib
+```
+
+5) Install the Pandas python package (https://pypi.python.org/pypi/pandas/)
+```
+pip install pandas
+```
+5.1) Install HDF5 (http://www.hdfgroup.org/HDF5/)  
+Either install the pre-built binaries or build from source as following
+```
+cd <top HDF5 source code directory>
+./configure --prefix=<location for HDF5 software> 
+make >& make.out
+make check >& check.out
+make install 
+```
+5.2) Install pyTables (http://www.pytables.org)  
+Add HDF5 to LD_LIBRARY PATH.
+```
+pip install tables
+```
+
+6) Install RazerS (http://www.seqan.de/projects/razers/)  
+Go to the project webpage and download a precompiled binary of RazerS 3 
+or follow the instruction in the Compilation from Source Code section.
+
+7) Install an ILP solver supported by Coopr (e.g. CPLEX or GLPK)
+
+
 Usage:
 -------------
 1) First filter the read files with the following settings:
