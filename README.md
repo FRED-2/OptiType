@@ -70,7 +70,7 @@ pip install matplotlib
 ```
 pip install pandas
 ```
-5.1) Install HDF5 (http://www.hdfgroup.org/HDF5/)  
+5.1) Install hdf5 (http://www.hdfgroup.org/HDF5/)  
 Either install the pre-built binaries or build from source as following
 ```
 cd <top HDF5 source code directory>
@@ -79,8 +79,21 @@ make >& make.out
 make check >& check.out
 make install 
 ```
-5.2) Install pyTables (http://www.pytables.org)  
-Add HDF5 to LD_LIBRARY PATH.
+5.2) Set environment variables  
+If you are using .tcshr or .cshrc,
+```
+setenv HDF5 "path to hdf5 installation"
+setenv PATH ${PATH}:${HDF5}/bin
+setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${HDF5}/lib
+```
+for bash, add to your .bashrc
+```
+export HDF5="path to hdf5 installation"
+export PATH=$PATH:${HDF5}/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HDF5}/lib
+```
+
+5.3) Install pyTables (http://www.pytables.org)  
 ```
 pip install tables
 ```
