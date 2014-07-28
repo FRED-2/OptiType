@@ -67,9 +67,7 @@ pip install matplotlib
 ```
 
 5) Install the Pandas python package (https://pypi.python.org/pypi/pandas/)
-```
-pip install pandas
-```
+
 5.1) Install hdf5 (http://www.hdfgroup.org/HDF5/)  
 Either install the pre-built binaries or build from source as following
 ```
@@ -98,12 +96,29 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HDF5}/lib
 pip install tables
 ```
 
+5.4) Install Pandas
+```
+pip install pandas
+```
+
 6) Install RazerS (http://www.seqan.de/projects/razers/)  
 Go to the project webpage and download a precompiled binary of RazerS 3 
 or follow the instruction in the Compilation from Source Code section.
 
-7) Install an ILP solver supported by Coopr (e.g. CPLEX or GLPK)
+7) Install an ILP solver supported by Coopr (e.g. CPLEX or GLPK) 
+and make sure that it is globally excecutable
 
+8) Configure the config.ini
+
+8.1) Set the path to the mapper
+```
+RAZERS3=/path/to/razerS3
+```
+
+8.2) Specyfy which solver to use (here glpk
+```
+SOLVER=glpk
+```
 
 Usage:
 -------------
