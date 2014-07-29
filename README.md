@@ -39,12 +39,12 @@ First install all required software and libraries and register the static path
 in the configuration file for RazerS 3.1. CPLEX should be globally executable
 via command line. Alternative ILP solver supported by Cooper can also be used 
 by changing the config file accordingly. CPLEX is free for academic use. For more 
-details see IBMs Academic Initiative (http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative)
+details see IBMs Academic Initiative (http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative).
 Please do not change the folder structure or make sure you changed the necessary
 entries in the config file.
 
 
-Step-by-Step Installation Guide (for Unix based systems):
+Step-by-Step Installation Guide (Unix):
 -------------
 1) Install Python 2.7 on your system  
 Either download it from https://www.python.org/download/ or just install it by easy_install e.g. depending on your system  
