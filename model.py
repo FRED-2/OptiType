@@ -35,7 +35,7 @@ class OptiType(object):
         self.__beta = float(beta)
         self.__t_max_allele = t_max_allele
         self.__solver = SolverFactory(solver)
-        self.__solver.options["threads"] = threads
+        self.__threads = threads
         self.__verbosity = True if verbosity > 0 else False
         self.__changed = True
         self.__ks = 1
@@ -142,7 +142,14 @@ class OptiType(object):
                 self.__instance.y.reset()
                 self.__instance.preprocess()
 
-                res = self.__solver.solve(self.__instance, tee=self.__verbosity)
+                try:
+                    if self.__threads > 1:
+                        res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
+                    else:
+                        res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+                except:
+                        del self.__solver.options["threads"]
+                        res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
                 self.__instance.load(res)
 
                 #if self.__verbosity > 0:
@@ -194,9 +201,8 @@ class OptiType(object):
                 nof_reads = sum((self.__instance.occ[j] * self.__instance.y[j].value for j in self.__instance.y))
                 #if self.__verbosity > 0:
                 #    print "Obj", res.Solution.Objective.__default_objective__.Value
-                d['obj'].append(res.Solution.Objective.__default_objective__.Value)
+                d['obj'].append(self.__instance.read_cov())
                 d['nof_reads'].append(nof_reads)
-
 
             self.__instance.c.clear()
             self.__changed = False
@@ -242,7 +248,15 @@ class OptiType(object):
             inst.y.reset()
             inst.preprocess()
 
-            res = self.__solver.solve(inst, tee=self.__verbosity)
+
+            try:
+                if self.__threads > 1:
+                    res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
+                else:
+                    res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+            except:
+                del self.__solver.options["threads"]
+                res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
             inst.load(res)
 
             if self.__verbosity > 0:
@@ -290,7 +304,7 @@ class OptiType(object):
 
             #print "Obj", res.Solution.Objective.__default_objective__.Value
             nof_reads = sum((inst.occ[j] * inst.y[j].value for j in inst.y))
-            d['obj'].append(res.Solution.Objective.__default_objective__.Value)
+            d['obj'].append(self.__instance.read_cov())
             d['nof_reads'].append(nof_reads)
 
         return pd.DataFrame(d)
@@ -337,7 +351,15 @@ class OptiType(object):
         inst.y.reset()
         inst.preprocess()
 
-        res = self.__solver.solve(inst, tee=self.__verbosity)  #,tee=True) verbose solvinf
+
+        try:
+            if self.__threads > 1:
+                res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
+            else:
+                res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+        except:
+            del self.__solver.options["threads"]
+            res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
         inst.load(res)
 
         opt_ids = [j for j in inst.x if 0.99 <= inst.x[j].value <= 1.01]
@@ -352,7 +374,7 @@ class OptiType(object):
                 d[aas[i] + str(c[aas[i]])].append(opt_ids[i])
                 c[aas[i]] += 1
         nof_reads = sum((inst.occ[j] * inst.y[j].value for j in inst.y))
-        d['obj'].append(res.Solution.Objective.__default_objective__.Value)
+        d['obj'].append(self.__instance.read_cov())
         d['nof_reads'].append(nof_reads)
 
         return pd.DataFrame(d)
@@ -370,7 +392,14 @@ class OptiType(object):
         self.__instance.y.reset()
         self.__instance.preprocess()
 
-        res = self.__solver.solve(self.__instance, tee=self.__verbosity)  #,tee=True) verbose solvinf
+        try:
+            if self.__threads > 1:
+                res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
+            else:
+                res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+        except:
+            del self.__solver.options["threads"]
+            res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
         self.__instance.load(res)
 
         opt_ids = [j for j in self.__instance.x if 0.99 <= self.__instance.x[j].value <= 1.01]
@@ -385,7 +414,7 @@ class OptiType(object):
                 d[aas[i] + str(c[aas[i]])].append(opt_ids[i])
                 c[aas[i]] += 1
         nof_reads = sum((self.__instance.occ[j] * self.__instance.y[j].value for j in self.__instance.y))
-        d['obj'].append(res.Solution.Objective.__default_objective__.Value)
+        d['obj'].append(self.__instance.read_cov())
         d['nof_reads'].append(nof_reads)
         d['discarded'].append(0)
 
@@ -428,7 +457,7 @@ class OptiType(object):
                     d[aas[q] + str(c[aas[q]])].append(selected[q])
                     c[aas[q]] += 1
             nof_reads = sum((self.__instance.occ[h] * self.__instance.y[h].value for h in self.__instance.y))
-            d['obj'].append(res.Solution.Objective.__default_objective__.Value)
+            d['obj'].append(self.__instance.read_cov())
             d['nof_reads'].append(nof_reads)
             d['discarded'].append(j)
         return pd.DataFrame(d)
@@ -464,7 +493,14 @@ class OptiType(object):
         inst.y.reset()
         inst.preprocess()
 
-        res = self.__solver.solve(inst, tee=self.__verbosity)  #,tee=True) verbose solvinf
+        try:
+            if self.__threads > 1:
+                res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
+            else:
+                res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+        except:
+            del self.__solver.options["threads"]
+            res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
         inst.load(res)
         selected = [al for al in inst.x if 0.99 <= inst.x[al].value <= 1.01]
         aas = [self.__allele_to_4digit[x].split('*')[0] for x in selected]
@@ -477,6 +513,6 @@ class OptiType(object):
                 d[aas[q] + str(c[aas[q]])].append(selected[q])
                 c[aas[q]] += 1
         nof_reads = sum((inst.occ[h] * inst.y[h].value for h in inst.y))
-        d['obj'].append(res.Solution.Objective.__default_objective__.Value)
+        d['obj'].append(self.__instance.read_cov())
         d['nof_reads'].append(nof_reads)
         return pd.DataFrame(d)

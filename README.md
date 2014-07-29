@@ -44,7 +44,7 @@ Please do not change the folder structure or make sure you changed the necessary
 entries in the config file.
 
 
-Step-by-Step Installation Guide:
+Step-by-Step Installation Guide (for Unix based systems):
 -------------
 1) Install Python 2.7 on your system  
 Either download it from https://www.python.org/download/ or just install it by easy_install e.g. depending on your system  
@@ -102,11 +102,11 @@ pip install pandas
 ```
 
 6) Install RazerS (http://www.seqan.de/projects/razers/)  
-Go to the project webpage and download a precompiled binary of RazerS 3 
+Go to the project web page and download a pre-compiled binary of RazerS 3
 or follow the instruction in the Compilation from Source Code section.
 
 7) Install an ILP solver supported by Coopr (e.g. CPLEX or GLPK) 
-and make sure that it is globally excecutable
+and make sure that it is globally executable
 
 8) Configure the config.ini
 
@@ -115,7 +115,7 @@ and make sure that it is globally excecutable
 RAZERS3=/path/to/razerS3
 ```
 
-8.2) Specyfy which solver to use (here glpk
+8.2) Specify which solver to use (as example GLPK is used)
 ```
 SOLVER=glpk
 ```
