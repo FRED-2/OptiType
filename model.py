@@ -149,6 +149,7 @@ class OptiType(object):
                     else:
                         res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
                 except:
+                        print "WARNING: Solver does not support multi-threading. Please, change your config.ini accordingly."
                         del self.__solver.options["threads"]
                         res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
                 self.__instance.load(res)
