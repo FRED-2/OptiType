@@ -305,7 +305,7 @@ if __name__ == '__main__':
         print "\n", ht.now(), 'Initializing OptiType model...'
 
     op = OptiType(sparse_dict, compact_occ, groups_4digit, table, args.beta, 2,
-                  config.get("OPTIMIZATION", "SOLVER"), config.get("OPTIMIZATION", "THREADS"), verbosity=verbosity)
+                  config.get("OPTIMIZATION", "SOLVER"), int(config.get("OPTIMIZATION", "THREADS")), verbosity=verbosity)
     result = op.solve(args.enumerate)
 
     if args.verbose:

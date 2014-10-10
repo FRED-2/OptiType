@@ -12,6 +12,7 @@ It is dependent on Coopr and uses an external ILP solver such as GLPK or CPLEX
 """
 
 from __future__ import division
+import coopr.environ
 from coopr.pyomo import ConcreteModel, Set, Param, Var, Binary, Objective, Constraint, ConstraintList, maximize
 from coopr.opt import SolverFactory
 from collections import defaultdict
@@ -256,6 +257,8 @@ class OptiType(object):
                     res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
             except:
                 del self.__solver.options["threads"]
+                print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
+                      "Fall back to single-threading."
                 res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
             inst.load(res)
 
