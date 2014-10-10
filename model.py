@@ -149,7 +149,8 @@ class OptiType(object):
                     else:
                         res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
                 except:
-                        print "WARNING: Solver does not support multi-threading. Please, change your config.ini accordingly."
+                        print "WARNING: Solver does not support multi-threading. Please change the config " \
+                              "file accordingly! Fall back to single-threading."
                         del self.__solver.options["threads"]
                         res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
                 self.__instance.load(res)
@@ -363,6 +364,8 @@ class OptiType(object):
                 res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
         except:
             del self.__solver.options["threads"]
+            print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
+                  "Fall back to single-threading."
             res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
         inst.load(res)
 
@@ -403,6 +406,8 @@ class OptiType(object):
                 res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
         except:
             del self.__solver.options["threads"]
+            print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
+                  "Fall back to single-threading."
             res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
         self.__instance.load(res)
 
@@ -504,6 +509,8 @@ class OptiType(object):
                 res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
         except:
             del self.__solver.options["threads"]
+            print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
+                      "Fall back to single-threading."
             res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
         inst.load(res)
         selected = [al for al in inst.x if 0.99 <= inst.x[al].value <= 1.01]
