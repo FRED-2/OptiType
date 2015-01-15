@@ -37,7 +37,7 @@ Installation:
 -------------
 First install all required software and libraries and register the static path
 in the configuration file for RazerS 3.1. CPLEX should be globally executable
-via command line. Alternative ILP solver supported by Cooper can also be used 
+via command line. Alternative ILP solver supported by Coopr can also be used 
 by changing the config file accordingly. CPLEX is free for academic use. For more 
 details see IBMs Academic Initiative (http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative).
 Please do not change the folder structure or make sure you changed the necessary
@@ -105,7 +105,7 @@ pip install pandas
 Go to the project web page and download a pre-compiled binary of RazerS 3
 or follow the instruction in the Compilation from Source Code section.
 
-7) Install an ILP solver supported by Coopr (e.g. CPLEX or GLPK) 
+7) Install an ILP solver supported by Coopr (e.g. CPLEX or CBC) 
 and make sure that it is globally executable
 
 8) Configure the config.ini
@@ -115,9 +115,9 @@ and make sure that it is globally executable
 RAZERS3=/path/to/razerS3
 ```
 
-8.2) Specify which solver to use (as example GLPK is used)
+8.2) Specify which solver to use (as example CBC https://projects.coin-or.org/Cbc is used)
 ```
-SOLVER=glpk
+SOLVER=cbc
 ```
 
 Usage:
