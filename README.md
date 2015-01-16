@@ -204,6 +204,6 @@ Downloads:
 
 Reference:
 -------------
- Szolek, A., Schubert, B., Mohr, C., Feldhahn, M., Strum, M.,
- & Kohlbacher, O. (2014). OptiType: precision HLA typing from next-generation
- sequencing data. (in review)
+Szolek, A, Schubert, B, Mohr, C, Sturm, M, Feldhahn, M, and Kohlbacher, O (2014).
+OptiType: precision HLA typing from next-generation sequencing data
+Bioinformatics, 30(23):3310-6.
