@@ -27,7 +27,7 @@ OptiType uses the following software and libraries:
 5. Pandas 0.12 (with HDF5 support)
 6. HDF5 1.8.11
 7. RazerS 3.1
-8. Cplex 12.5 (or other ILP solver suppored by Coopr)
+8. Cplex 12.5 (or other ILP solver supported by Coopr)
 
 Please make sure you have installed said software/libraries
 and their dependencies.
