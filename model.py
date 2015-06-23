@@ -12,7 +12,6 @@ It is dependent on Coopr and uses an external ILP solver such as GLPK or CPLEX
 """
 
 from __future__ import division
-import coopr.environ
 from coopr.pyomo import ConcreteModel, Set, Param, Var, Binary, Objective, Constraint, ConstraintList, maximize
 from coopr.opt import SolverFactory
 from collections import defaultdict
