@@ -60,7 +60,7 @@ based operating system you can convert from sam to fastq with the following
 command:
 
 >cat sample_fished.sam | grep -v ^@
-	| awk '{print "@"$1"\n"$10"\n+\n"$11}' > sample_fished.fastq
+    | awk '{print "@"$1"\n"$10"\n+\n"$11}' > sample_fished.fastq
 
 For paired-end data pre-process each file individually.
 
@@ -99,6 +99,7 @@ optional arguments:
 import sys
 import subprocess
 import os
+import os.path
 import argparse
 import ConfigParser
 import time
@@ -131,10 +132,10 @@ def get_types(allele_id):
             return table.ix[aa[0]]['4digit']
         else:
             return table.ix[aa[0]]['4digit']  #+ '/' + table.ix[aa[1]]['4digit']
-            
-            
-            
-            
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -172,13 +173,20 @@ if __name__ == '__main__':
                       action="store_true",
                       help="Set verbose mode on."
                       )
+    parser.add_argument('--config-file',
+                      required=False,
+                      help="User-defined path to config file, optional"
+                      )
 
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
-    config.read("./config.ini")
+    if args.config_file:
+        config.read(args.config_file)
+    else:
+        config.read(os.path.join(os.path.dirname(__file__), "config.ini"))
 
     if not os.path.exists(args.outdir):
-        os.makedirs(args.outdir)        
+        os.makedirs(args.outdir)
 
     #test if inputs are legit:
     if args.beta < 0.0 or args.beta >= 0.1:
@@ -203,7 +211,7 @@ if __name__ == '__main__':
     #SETUP variables and OUTPUT samples
     ref_type = "nuc" if args.rna else "gen"
     is_paired = len(args.input) > 1
-    
+
     out_csv = out_dir+"/%s_result.tsv"%date
     out_plot = out_dir+"/%s_coverage_plot.pdf"%date
 
@@ -226,13 +234,13 @@ if __name__ == '__main__':
         sample_2 = out_dir+"/"+date+"_1.sam"
         pos, etc, desc = ht.sam_to_hdf(sample_1, verbosity=args.verbose)
         binary1 = pos.applymap(bool).applymap(int)
-        
+
         pos2, etc2, desc2 = ht.sam_to_hdf(sample_2, verbosity=args.verbose)
         binary2 = pos2.applymap(bool).applymap(int)
-        
+
         id1 = set(binary1.index)
         id2 = set(binary2.index)
-        
+
         '''
             test if we actually can do paired-end mapping
             1) look at the last character 2-1 character if they are always the same if so -> proon them away and do
@@ -313,11 +321,11 @@ if __name__ == '__main__':
 
     result_4digit = result.applymap(get_types)
     r = result_4digit[["A1", "A2", "B1", "B2", "C1", "C2", "nof_reads", "obj"]]
-    #write CSV to out. and generate Plots.  
+    #write CSV to out. and generate Plots.
     r.to_csv(out_csv, sep="\t",
                          cols=["A1", "A2", "B1", "B2", "C1", "C2", "nof_reads", "obj"],
                          header=["A1", "A2", "B1", "B2", "C1", "C2", "Reads", "Objective"])
-    
+
     hlatype = result.irow(0)[["A1", "A2", "B1", "B2", "C1", "C2"]].drop_duplicates()
     features_used = [('intron', 1), ('exon', 2), ('intron', 2), ('exon', 3), ('intron', 3)] \
                      if not args.rna else [('exon',2),('exon',3)]
