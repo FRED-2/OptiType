@@ -134,11 +134,7 @@ def get_types(allele_id):
             return table.ix[aa[0]]['4digit']  #+ '/' + table.ix[aa[1]]['4digit']
 
 
-
-
-
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description=' OptiType: 4-digit HLA typer', prog='OptiType')
     parser.add_argument('--input','-i',
                       nargs='+',
@@ -332,3 +328,6 @@ if __name__ == '__main__':
     plot_variables = [pos, etc, desc, pos2, etc2, desc2, binary] if is_paired else [pos, etc, desc]
     coverage_mat = ht.calculate_coverage(plot_variables, features, hlatype, features_used)
     ht.plot_coverage(out_plot, coverage_mat, table, features, features_used)
+
+if __name__ == '__main__':
+    main()
