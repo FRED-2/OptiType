@@ -176,10 +176,10 @@ def main():
 
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
-    if args.config_file:
-        config.read(args.config_file)
-    else:
-        config.read(os.path.join(os.path.dirname(__file__), "config.ini"))
+    config_path = args.config_file
+    if not config_path:
+        config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
+    config.read(config_path)
 
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
@@ -193,11 +193,19 @@ def main():
         print "The specified number of enumerations must be bigger than %i"%args.enumeration
         sys.exit(-1)
 
+    def rel_to_abs(path):
+        """Convert relative path from config.ini to absolute paths."""
+        if path.startswith('/'):
+            return path
+        else:
+            return os.path.join(os.path.dirname(os.path.abspath(config_path)),
+                                path)
     #Constants
     verbosity = 1 if args.verbose else 0
     COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %s -o %s.sam %s %s"
-    ALLELE_HDF = config.get("LIBRARIES", "ALLELES")
-    MAPPING_REF = {'gen': config.get("LIBRARIES", "DNA_REF"), 'nuc': config.get("LIBRARIES", "RNA_REF")}
+    ALLELE_HDF = rel_to_abs(config.get("LIBRARIES", "ALLELES"))
+    MAPPING_REF = {'gen': rel_to_abs(config.get("LIBRARIES", "DNA_REF")),
+                   'nuc': rel_to_abs(config.get("LIBRARIES", "RNA_REF"))}
     MAPPING_CMD = config.get("MAPPING", "RAZERS3")+" "+COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
     out_dir = args.outdir+date if args.outdir[-1] == "/" else args.outdir+"/"+date
