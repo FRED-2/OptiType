@@ -21,6 +21,7 @@ setup(name='OptiType',
         'biopython==1.65',
         'matplotlib==1.4.3',
         'wsgiref==0.1.2',
+        'numpy==1.9.2',
         'pandas==0.16.2',
         'tables==3.2.0',
       ]
