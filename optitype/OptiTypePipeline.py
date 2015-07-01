@@ -134,6 +134,33 @@ def get_types(allele_id):
             return table.ix[aa[0]]['4digit']  #+ '/' + table.ix[aa[1]]['4digit']
 
 
+class PrintReferencePathAction(argparse.Action):
+    def __init__(self,
+                 option_strings,
+                 dest=argparse.SUPPRESS,
+                 default=argparse.SUPPRESS,
+                 nargs=1,
+                 help=None):
+        super(PrintReferencePathAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            nargs=nargs,
+            help=help)
+
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values[0] not in ['dna', 'rna']:
+            parser.exit(message='invalid ref type %s, either dna or rna\n' %
+                        values[0],
+                        status=1)
+        import optitype
+        mod_path = os.path.dirname(optitype.__file__)
+        res = os.path.join(mod_path, 'data',
+                           'hla_reference_' + values[0] + '.fasta')
+        print res
+        parser.exit()
+
+
 def main():
     parser = argparse.ArgumentParser(description=' OptiType: 4-digit HLA typer', prog='OptiType')
     parser.add_argument('--input','-i',
@@ -173,6 +200,10 @@ def main():
                       required=False,
                       help="User-defined path to config file, optional"
                       )
+    parser.add_argument('--print-reference-path',
+                        action=PrintReferencePathAction,
+                        help=('print path to reference, give dna or rna as '
+                              'argument'))
 
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
