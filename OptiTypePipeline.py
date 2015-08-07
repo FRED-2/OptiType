@@ -200,16 +200,14 @@ if __name__ == '__main__':
     MAPPING_REF = {'gen': config.get("LIBRARIES", "DNA_REF"), 'nuc': config.get("LIBRARIES", "RNA_REF")}
     MAPPING_CMD = config.get("MAPPING", "RAZERS3")+" "+COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
-    out_dir = args.outdir+date if args.outdir[-1] == "/" else args.outdir+"/"+date
-
-    os.makedirs(out_dir)
+    out_dir = args.outdir
 
     #SETUP variables and OUTPUT samples
     ref_type = "nuc" if args.rna else "gen"
     is_paired = len(args.input) > 1
     
-    out_csv = out_dir+"/%s_result.tsv"%date
-    out_plot = out_dir+"/%s_coverage_plot.pdf"%date
+    out_csv =  out_dir+"/%s_OptiType.tsv"%os.path.basename(args.input[0])
+    out_plot = out_dir+"/%s_OT_coverage_plot.pdf"%os.path.basename(args.input[0])
 
     #mapping fished file to reference
     for i, sample in enumerate(args.input):
