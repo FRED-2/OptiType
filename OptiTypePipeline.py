@@ -231,6 +231,9 @@ if __name__ == '__main__':
         
         pos2, etc2, desc2 = ht.sam_to_hdf(sample_2, verbosity=args.verbose)
         binary2 = pos2.applymap(bool).applymap(int)
+
+        os.remove(sample_1)
+        os.remove(sample_2)
         
         id1 = set(binary1.index)
         id2 = set(binary2.index)
@@ -263,7 +266,9 @@ if __name__ == '__main__':
                 binary = binary1
                 is_paired = False
     else:
-        pos, etc, desc = ht.sam_to_hdf(out_dir+"/"+date+"_0.sam", verbosity=args.verbose)
+        sample_1 = out_dir+"/"+date+"_0.sam"
+        pos, etc, desc = ht.sam_to_hdf(sample_1, verbosity=args.verbose)
+        os.remove(sample_1)
         binary = pos.applymap(bool).applymap(int)
 
     #dimensionality reduction and typing
