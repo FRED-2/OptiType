@@ -312,6 +312,9 @@ if __name__ == '__main__':
         print "\n", ht.now(), 'Result dataframe has been constructed...'
 
     result_4digit = result.applymap(get_types)
+    for iii in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+        if not iii in result_4digit:
+            result_4digit[iii] = None
     r = result_4digit[["A1", "A2", "B1", "B2", "C1", "C2", "nof_reads", "obj"]]
     #write CSV to out. and generate Plots.  
     r.to_csv(out_csv, sep="\t",
@@ -319,6 +322,7 @@ if __name__ == '__main__':
                          header=["A1", "A2", "B1", "B2", "C1", "C2", "Reads", "Objective"])
     
     hlatype = result.irow(0)[["A1", "A2", "B1", "B2", "C1", "C2"]].drop_duplicates()
+    hlatype = hlatype.dropna()
     features_used = [('intron', 1), ('exon', 2), ('intron', 2), ('exon', 3), ('intron', 3)] \
                      if not args.rna else [('exon',2),('exon',3)]
     plot_variables = [pos, etc, desc, pos2, etc2, desc2, binary] if is_paired else [pos, etc, desc]
