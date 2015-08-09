@@ -96,6 +96,9 @@ optional arguments:
   --verbose, -v         Set verbose mode on.
 """
 
+import matplotlib
+matplotlib.use('Agg')   ## doesn't require X11
+
 import sys
 import subprocess
 import os
