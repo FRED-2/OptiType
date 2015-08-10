@@ -96,6 +96,9 @@ optional arguments:
   --verbose, -v         Set verbose mode on.
 """
 
+import matplotlib
+matplotlib.use('Agg')   ## doesn't require X11
+
 import sys
 import subprocess
 import os
@@ -103,6 +106,7 @@ import argparse
 import ConfigParser
 import time
 import datetime
+import tempfile
 import pandas as pd
 import hlatyper as ht
 from model import OptiType
@@ -191,28 +195,29 @@ if __name__ == '__main__':
 
     #Constants
     verbosity = 1 if args.verbose else 0
-    COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %s -o %s.sam %s %s"
+    COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %s -o %s %s %s"
     ALLELE_HDF = config.get("LIBRARIES", "ALLELES")
     MAPPING_REF = {'gen': config.get("LIBRARIES", "DNA_REF"), 'nuc': config.get("LIBRARIES", "RNA_REF")}
     MAPPING_CMD = config.get("MAPPING", "RAZERS3")+" "+COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
-    out_dir = args.outdir+date if args.outdir[-1] == "/" else args.outdir+"/"+date
-
-    os.makedirs(out_dir)
+    out_dir = args.outdir
 
     #SETUP variables and OUTPUT samples
     ref_type = "nuc" if args.rna else "gen"
     is_paired = len(args.input) > 1
     
-    out_csv = out_dir+"/%s_result.tsv"%date
-    out_plot = out_dir+"/%s_coverage_plot.pdf"%date
+    out_csv =  out_dir+"/%s_OptiType.tsv"%os.path.basename(args.input[0])
+    out_plot = out_dir+"/%s_OT_coverage_plot.pdf"%os.path.basename(args.input[0])
 
     #mapping fished file to reference
+    temp_SAM_files = []
     for i, sample in enumerate(args.input):
         if args.verbose:
             print "\n", ht.now(), "Mapping %s to %s reference..."%(os.path.basename(sample), ref_type.upper())
-        sample_out = out_dir+"/"+date+"_"+str(i)
-        subprocess.call(MAPPING_CMD%(config.get("MAPPING", "THREADS"), sample_out,
+        temp_SAM_files.append(tempfile.NamedTemporaryFile(prefix = 'optitype_tmp', suffix = '.sam'))
+        if args.verbose:
+            print "\n", ht.now(), "Using temporary file: %s "%(temp_SAM_files[i].name)
+        subprocess.call(MAPPING_CMD%(config.get("MAPPING", "THREADS"), temp_SAM_files[i].name,
                                      MAPPING_REF[ref_type], sample), shell=True)
 
     #sam-to-hd5
@@ -222,14 +227,12 @@ if __name__ == '__main__':
 
     if is_paired:
         #combine matrices for paired-end mapping
-        sample_1 = out_dir+"/"+date+"_0.sam"
-        sample_2 = out_dir+"/"+date+"_1.sam"
-        pos, etc, desc = ht.sam_to_hdf(sample_1, verbosity=args.verbose)
+        pos, etc, desc = ht.sam_to_hdf(temp_SAM_files[0].name, verbosity=args.verbose)
         binary1 = pos.applymap(bool).applymap(int)
         
-        pos2, etc2, desc2 = ht.sam_to_hdf(sample_2, verbosity=args.verbose)
+        pos2, etc2, desc2 = ht.sam_to_hdf(temp_SAM_files[1].name, verbosity=args.verbose)
         binary2 = pos2.applymap(bool).applymap(int)
-        
+
         id1 = set(binary1.index)
         id2 = set(binary2.index)
         
@@ -261,7 +264,7 @@ if __name__ == '__main__':
                 binary = binary1
                 is_paired = False
     else:
-        pos, etc, desc = ht.sam_to_hdf(out_dir+"/"+date+"_0.sam", verbosity=args.verbose)
+        pos, etc, desc = ht.sam_to_hdf(temp_SAM_files[1].name, verbosity=args.verbose)
         binary = pos.applymap(bool).applymap(int)
 
     #dimensionality reduction and typing
@@ -312,6 +315,9 @@ if __name__ == '__main__':
         print "\n", ht.now(), 'Result dataframe has been constructed...'
 
     result_4digit = result.applymap(get_types)
+    for iii in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+        if not iii in result_4digit:
+            result_4digit[iii] = None
     r = result_4digit[["A1", "A2", "B1", "B2", "C1", "C2", "nof_reads", "obj"]]
     #write CSV to out. and generate Plots.  
     r.to_csv(out_csv, sep="\t",
@@ -319,6 +325,7 @@ if __name__ == '__main__':
                          header=["A1", "A2", "B1", "B2", "C1", "C2", "Reads", "Objective"])
     
     hlatype = result.irow(0)[["A1", "A2", "B1", "B2", "C1", "C2"]].drop_duplicates()
+    hlatype = hlatype.dropna()
     features_used = [('intron', 1), ('exon', 2), ('intron', 2), ('exon', 3), ('intron', 3)] \
                      if not args.rna else [('exon',2),('exon',3)]
     plot_variables = [pos, etc, desc, pos2, etc2, desc2, binary] if is_paired else [pos, etc, desc]
