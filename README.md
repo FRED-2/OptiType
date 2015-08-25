@@ -22,12 +22,12 @@ OptiType uses the following software and libraries:
 
 1. Python 2.7
 2. Biopython 1.63
-3. Coopr 3.3
+3. Coopr 4.1
 4. Matplotlib 1.3.1
 5. Pandas 0.12 (with HDF5 support)
 6. HDF5 1.8.11
 7. RazerS 3.1
-8. Cplex 12.5 (or other ILP solver supported by Coopr)
+8. Cplex 12.5 (or other ILP solver supported by Pyomo)
 
 Please make sure you have installed said software/libraries
 and their dependencies.
@@ -80,18 +80,19 @@ make install
 5.2) Set environment variables  
 If you are using .tcshr or .cshrc,
 ```
-setenv HDF5 "path to hdf5 installation"
-setenv PATH ${PATH}:${HDF5}/bin
-setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${HDF5}/lib
+setenv HDF5_DIR "path to hdf5 installation"
+setenv PATH ${PATH}:${HDF5_DIR}/bin
+setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${HDF5_DIR}/lib
 ```
 for bash, add to your .bashrc
 ```
-export HDF5="path to hdf5 installation"
-export PATH=$PATH:${HDF5}/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HDF5}/lib
+export HDF5_DIR="path to hdf5 installation"
+export PATH=$PATH:${HDF5_DIR}/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HDF5_DIR}/lib
 ```
 
-5.3) Install pyTables (http://www.pytables.org)  
+5.3) Install pyTables (http://www.pytables.org)
+You have to make sure that the HDF5_DIR environmental variable is still available at the time you install pyTables.
 ```
 pip install tables
 ```
