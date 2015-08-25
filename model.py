@@ -12,9 +12,8 @@ It is dependent on Coopr and uses an external ILP solver such as GLPK or CPLEX
 """
 
 from __future__ import division
-import coopr.environ
-from coopr.pyomo import ConcreteModel, Set, Param, Var, Binary, Objective, Constraint, ConstraintList, maximize
-from coopr.opt import SolverFactory
+from pyomo.environ import ConcreteModel, Set, Param, Var, Binary, Objective, Constraint, ConstraintList, maximize
+from pyomo.opt import SolverFactory, TerminationCondition
 from collections import defaultdict
 import pandas as pd
 import itertools
@@ -111,8 +110,9 @@ class OptiType(object):
 
         #generate constraint list for solution enumeration
         model.c = ConstraintList()
-        #generate instance
-        self.__instance = model.create()
+        # Generate instance. Used to be .create() but deprecated since,
+        # as ConcreteModels are instances on their own now.
+        self.__instance = model
 
     def set_beta(self, beta):
         """
@@ -153,12 +153,13 @@ class OptiType(object):
                               "file accordingly! Fall back to single-threading."
                         del self.__solver.options["threads"]
                         res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
-                self.__instance.load(res)
+                self.__instance.solutions.load_from(res)  # solution loading changed recently.
 
                 #if self.__verbosity > 0:
                 #    res.write(num=1)
 
-                if str(res.Solution.status) != 'optimal':
+                if res.solver.termination_condition != TerminationCondition.optimal:
+                    print "Optimal solution hasn't been obtained. This is a terminal problem."  # TODO message, exit
                     break
 
                 selected = []
@@ -267,7 +268,8 @@ class OptiType(object):
             if self.__verbosity > 0:
                 res.write(num=1)
 
-            if str(res.Solution.status) != 'optimal':
+            if res.solver.termination_condition != TerminationCondition.optimal:
+                print "Optimal solution hasn't been obtained. This is a terminal problem."  # TODO message, exit
                 break
 
             selected = []

@@ -24,7 +24,7 @@ Requirement:
 OptiType uses the following software and libraries:
 1) Python 2.7
 2) Biopython 1.63
-3) Coopr 3.3
+3) Pyomo 4.1
 4) Matplotlib 1.3.1
 5) Pandas 0.12 (with HDF5 support)
 6) HDF5 1.8.11
@@ -106,6 +106,7 @@ import datetime
 import pandas as pd
 import hlatyper as ht
 import matplotlib
+import numpy as np
 from model import OptiType
 from collections import defaultdict
 
@@ -229,10 +230,10 @@ if __name__ == '__main__':
         sample_1 = out_dir+"/"+date+"_0.sam"
         sample_2 = out_dir+"/"+date+"_1.sam"
         pos, etc, desc = ht.sam_to_hdf(sample_1, verbosity=args.verbose)
-        binary1 = pos.applymap(bool).applymap(int)
+        binary1 = np.sign(pos)
         
         pos2, etc2, desc2 = ht.sam_to_hdf(sample_2, verbosity=args.verbose)
-        binary2 = pos2.applymap(bool).applymap(int)
+        binary2 = np.sign(pos2)
 
         os.remove(sample_1)
         os.remove(sample_2)
@@ -271,7 +272,7 @@ if __name__ == '__main__':
         sample_1 = out_dir+"/"+date+"_0.sam"
         pos, etc, desc = ht.sam_to_hdf(sample_1, verbosity=args.verbose)
         os.remove(sample_1)
-        binary = pos.applymap(bool).applymap(int)
+        binary = np.sign(pos)
 
     #dimensionality reduction and typing
 
