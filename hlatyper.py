@@ -6,7 +6,15 @@ import warnings
 from collections import OrderedDict
 from Bio import SeqIO
 from datetime import datetime
+import sys
 
+try:
+    import pysam
+    PYSAM_AVAILABLE = True
+except ImportError:
+    PYSAM_AVAILABLE = False
+
+VERBOSE = False
 
 def now(start=datetime.now()):
     # function argument NOT to be ever set! It gets initialized at function definition time
@@ -119,7 +127,7 @@ def sam_to_hdf(samfile):
 
     # major performance increase if we initialize a numpy zero-matrix and pass that in the constructor
     # than if we just let pandas initialize its default NaN matrix
-    matrix_pos = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
+    matrix_pos = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=np.uint16), columns=allele_ids, index=read_ids)
 
     # read_details contains NM and read length tuples, calculated from the first encountered CIGAR string.
     read_details = OrderedDict()
@@ -159,6 +167,76 @@ def sam_to_hdf(samfile):
     details_df.columns = ['mismatches', 'read_length']
 
     return matrix_pos, details_df
+
+
+def pysam_to_hdf(samfile):
+    if not PYSAM_AVAILABLE:
+        print "Warning: PySam not available on the system. Falling back to primitive SAM parsing."
+        return sam_to_hdf(samfile)
+
+    sam_or_bam = 'rb' if samfile.endswith('.bam') else 'r'
+    sam = pysam.AlignmentFile(samfile, sam_or_bam)
+    is_yara = (sam.header['PG'][0]['ID'] in ('Yara', 'yara'))
+    # If yara produced the sam/bam file, we need to know in what form to expect secondary alignments.
+    # If the -os flag was used in the call, they are proper secondary alignments. Otherwise, they are
+    # one line per read with a long XA custom tag containing alternative hits.
+    xa_tag = is_yara and (' -os ' not in sam.header['PG'][0]['CL'])
+
+    nref = sam.nreferences
+    hits = OrderedDict()
+
+    allele_id_to_index = {aa: ii for ii, aa in enumerate(sam.references)}
+
+    # read_details contains NM and read length tuples. We ignore length on reference from now on.
+    # Not worth the effort and calculation. Indels are rare and they have to be dealt with differently. The coverage
+    # plot wil still be fine and +-1 bp regarding read end isn't concerning.
+    read_details = OrderedDict()
+
+    if VERBOSE:
+        print now(), 'Loading %s started. Number of HLA reads loaded (updated every thousand):' % samfile
+
+    read_counter = 0
+    hit_counter = 0
+
+    for aln in sam:
+        # TODO: we could spare on accessing hits[aln.qname] if we were guaranteed alignments of one read come in batches
+        # and never mix. Most aligners behave like this but who knows...
+        if aln.qname not in hits:  # for primary alignments (first hit of read)
+            # not using defaultdict because we have other one-time things to do when new reads come in anyway
+            hits[aln.qname] = np.zeros(nref, dtype=np.uint16)  # 16 bits are enough for 65K positions, enough for HLA.
+            # TODO: as soon as we don't best-map but let in suboptimal alignments, this below is not good enough,
+            # as we need to store NM for every read-allele pair.
+            # and then there are cases (usually 1D/1I artefacts at the end) where aligned reference length isn't the same
+            # for all alignments of a read. How to handle that? Maybe needless if we re-map reads anyway.
+            read_details[aln.qname] = (aln.get_tag('NM'), aln.query_length)  # aln.reference_length it used to be. Soft-trimming is out of question now.
+            read_counter += 1
+            if VERBOSE and not (read_counter % 1000):
+                sys.stdout.write('%dK...' % (len(hits)/1000))
+                sys.stdout.flush()
+            if xa_tag and aln.has_tag('XA'):
+                current_row = hits[aln.qname]  # we may access this hundreds of times, better do it directly
+                subtags = aln.get_tag('XA').split(';')[:-1]
+                hit_counter += len(subtags)
+                for subtag in subtags:
+                    allele, pos = subtag.split(',')[:2]  # subtag is like HLA02552,691,792,-,1 (id, start, end, orient, nm)
+                    current_row[allele_id_to_index[allele]] = int(pos)  # 1-based positions
+
+        # this runs for primary and secondary alignments as well:
+        hits[aln.qname][aln.reference_id] = aln.reference_start + 1  # pysam reports 0-based positions
+        hit_counter += 1
+        # num_mismatches = aln.get_tag('NM')  # if we ever need suboptimal alignments... doubtful.
+
+    if VERBOSE:
+        print '\n', now(), len(hits), 'reads loaded. Creating dataframe...'
+    pos_df = pd.DataFrame.from_items(hits.iteritems()).T
+    pos_df.columns = sam.references[:]
+    details_df = pd.DataFrame.from_dict(read_details, orient='index')
+    details_df.columns = ['mismatches', 'read_length']
+    if VERBOSE:
+        print now(), 'Dataframes created. Shape: %d x %d, hits: %d (%d), sparsity: 1 in %.2f' % (
+            pos_df.shape[0], pos_df.shape[1], np.sign(pos_df).sum().sum(), hit_counter, pos_df.shape[0]*pos_df.shape[1]/float(hit_counter)
+            )  # TODO: maybe return the binary here right away if we're using it to calculate density anyway.
+    return pos_df, details_df
 
 
 def get_compact_model(hit_df, to_bool=False):
@@ -337,7 +415,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
 def prune_identical_alleles(binary_mtx, report_groups=False):
     # return binary_mtx.transpose().drop_duplicates().transpose()
     # # faster:
-    hash_columns = binary_mtx.transpose().dot(np.random.rand(binary_mtx.shape[0]))
+    hash_columns = binary_mtx.transpose().dot(np.random.rand(binary_mtx.shape[0]))  # dtype np.uint16 okay here because result will be float64
     if report_groups:
         grouper = hash_columns.groupby(hash_columns)
         groups = {g[1].index[0]: g[1].index.tolist() for g in grouper}
@@ -349,23 +427,34 @@ def prune_identical_alleles(binary_mtx, report_groups=False):
 def prune_identical_reads(binary_mtx):
     # almost the same as ht.get_compact_model() except it doesn't return an occurence vector.
     # It should only be used to compactify a matrix before passing it to the function finding
-    # overshadowed alleles as it uses a super expensive square product operation.
-    # Final compactifying should be later done on the original binary matrix.
+    # overshadowed alleles. Final compactifying should be later done on the original binary matrix.
     #
     # return binary_mtx.drop_duplicates()
     # # faster:
-    reads_to_keep = binary_mtx.dot(np.random.rand(binary_mtx.shape[1])).drop_duplicates().index
+    reads_to_keep = binary_mtx.dot(np.random.rand(binary_mtx.shape[1])).drop_duplicates().index  # dtype np.uint16 okay because result will be float64
     return binary_mtx.loc[reads_to_keep]
 
 
 def prune_overshadowed_alleles(binary_mtx):
-    # USES COVARIANCE which can be slow for huge matrices.
+    # Calculates B_T*B of the (pruned) binary matrix to determine if certain alleles "overshadow" others, i.e.
+    # have the same hits as other alleles plus more. In this case, these "other alleles" can be thrown out early, as
+    # they would be never chosen over the one overshadowing them.
+    #
     # For a 1000reads x 3600alleles matrix it takes 15 seconds.
     # So you should always prune identical columns and rows before to give it a matrix as small as possible.
     # So ideal usage:
     # prune_overshadowed_alleles(prune_identical_alleles(prune_identical_reads(binary_mtx)))
 
-    bb = binary_mtx.applymap(int)  # make sure dot products are not boolean but numbers
+    # np.dot() is prone to overflow and doesn't expand to int64 like np.sum(). Our binary matrices are np.uint16.
+    # If we have less than 65K rows in the binary mtx, we're good with uint16. We're also good if there's no
+    # column with 65K+ hits. We check for both with lazy 'or' to avoid calculating the sum if not needed anyway.
+    # If we would overflow, we change to uint32.
+    if (binary_mtx.shape[0] < np.iinfo(np.uint16).max) or (binary_mtx.sum(axis=0).max() < np.iinfo(np.uint16).max):
+        # In case we would reduce the binary mtx to np.uint8 we should to ensure it's at least uint16.
+        bb = binary_mtx if all(binary_mtx.dtypes == np.uint16) else binary_mtx.astype(np.uint16)
+    else:
+        bb = binary_mtx.astype(np.uint32)
+
     covariance = bb.transpose().dot(bb)
     diagonal = pd.Series([covariance[ii][ii] for ii in covariance.columns], index=covariance.columns)
     new_covariance = covariance[covariance.columns]

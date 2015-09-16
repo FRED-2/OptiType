@@ -228,11 +228,11 @@ if __name__ == '__main__':
         # combine matrices for paired-end mapping
         sample_1 = out_dir + "/" + date + "_0.sam"
         sample_2 = out_dir + "/" + date + "_1.sam"
-        pos, read_details = ht.sam_to_hdf(sample_1)
-        binary1 = np.sign(pos)
+        pos, read_details = ht.pysam_to_hdf(sample_1)
+        binary1 = np.sign(pos)  # dtype=np.uint16
         
-        pos2, read_details2 = ht.sam_to_hdf(sample_2)
-        binary2 = np.sign(pos2)
+        pos2, read_details2 = ht.pysam_to_hdf(sample_2)
+        binary2 = np.sign(pos2)  # dtype=np.uint16
 
         os.remove(sample_1)
         os.remove(sample_2)
@@ -269,9 +269,9 @@ if __name__ == '__main__':
                 is_paired = False
     else:
         sample_1 = out_dir + "/" + date + "_0.sam"
-        pos, read_details = ht.sam_to_hdf(sample_1)
+        pos, read_details = ht.pysam_to_hdf(sample_1)
         os.remove(sample_1)
-        binary = np.sign(pos)
+        binary = np.sign(pos)  # dtype=np.uint16
 
     # dimensionality reduction and typing
 
