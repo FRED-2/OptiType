@@ -228,10 +228,10 @@ if __name__ == '__main__':
         # combine matrices for paired-end mapping
         sample_1 = out_dir + "/" + date + "_0.sam"
         sample_2 = out_dir + "/" + date + "_1.sam"
-        pos, etc, desc = ht.sam_to_hdf(sample_1)
+        pos, read_details = ht.sam_to_hdf(sample_1)
         binary1 = np.sign(pos)
         
-        pos2, etc2, desc2 = ht.sam_to_hdf(sample_2)
+        pos2, read_details2 = ht.sam_to_hdf(sample_2)
         binary2 = np.sign(pos2)
 
         os.remove(sample_1)
@@ -269,7 +269,7 @@ if __name__ == '__main__':
                 is_paired = False
     else:
         sample_1 = out_dir + "/" + date + "_0.sam"
-        pos, etc, desc = ht.sam_to_hdf(sample_1)
+        pos, read_details = ht.sam_to_hdf(sample_1)
         os.remove(sample_1)
         binary = np.sign(pos)
 
@@ -334,6 +334,6 @@ if __name__ == '__main__':
     hlatype = result.irow(0)[["A1", "A2", "B1", "B2", "C1", "C2"]].drop_duplicates().dropna()
     features_used = [('intron', 1), ('exon', 2), ('intron', 2), ('exon', 3), ('intron', 3)] \
                      if not args.rna else [('exon',2),('exon',3)]
-    plot_variables = [pos, etc, desc, pos2, etc2, desc2, binary] if is_paired else [pos, etc, desc]
+    plot_variables = [pos, read_details, pos2, read_details2, binary] if is_paired else [pos, read_details]
     coverage_mat = ht.calculate_coverage(plot_variables, features, hlatype, features_used)
     ht.plot_coverage(out_plot, coverage_mat, table, features, features_used)

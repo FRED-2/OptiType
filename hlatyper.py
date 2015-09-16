@@ -107,12 +107,6 @@ def sam_to_hdf(samfile):
                 first_hit_row = False
                 columns = line.split()
                 try:
-                    md_index = map(lambda x: x.startswith('MD:'), columns).index(True)
-                except ValueError:
-                    # TODO: we don't really handle the case if MD-tag is not present, code will fail later
-                    print '\tNo MD-tag found in SAM file!'
-                    md_index = None
-                try:
                     nm_index = map(lambda x: x.startswith('NM:'), columns).index(True)
                 except ValueError:
                     # TODO: we don't really handle the case if NM-tag is not present, code will fail later
@@ -126,7 +120,9 @@ def sam_to_hdf(samfile):
     # major performance increase if we initialize a numpy zero-matrix and pass that in the constructor
     # than if we just let pandas initialize its default NaN matrix
     matrix_pos = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
-    matrix_etc = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
+
+    # read_details contains NM and read length tuples, calculated from the first encountered CIGAR string.
+    read_details = OrderedDict()
 
     if VERBOSE:
         print now(), '%dx%d mapping matrix initialized. Populating %d hits from SAM file...' % (len(read_ids), len(allele_ids), total_hits)
@@ -134,18 +130,6 @@ def sam_to_hdf(samfile):
     milestones = [x * total_hits / 10 for x in range(1, 11)]  # for progress bar
 
     with open(samfile, 'r') as f:
-
-        # NM, CIGAR and MD fields are extremely redundant. We'll build an ordered set of their triplets
-        # and create a second matrix identical to the first one where fields reference positions in this
-        # ordered set of hit descriptors. Reason to use OrderedDict: each key triplet's value is their
-        # position index in the set. So if I do a lookup on a triplet, I can tell its index, and later on
-        # I can retreive the triplet from its index by nm_cigar_mismatch_set.keys()[index]
-        # A minor hack: to be able to initialize a fast numpy zero matrix and not a slow pandas NaN matrix
-        # I add a first dummy element to this set (index 0) that correspond to unset matrix fields
-        # and the actual triplets will start from 1.
-        nm_cigar_mismatch_set = OrderedDict()
-        nm_cigar_mismatch_set[(0, '', '')] = 0
-
         counter = 0
         percent = 0
         for line in f:
@@ -153,21 +137,12 @@ def sam_to_hdf(samfile):
                 continue
 
             fields = line.strip().split('\t')
-            read_id, allele_id, position, cigar, nm, mismatches = (fields[i] for i in (0, 2, 3, 5, nm_index, md_index))
+            read_id, allele_id, position, cigar, nm = (fields[i] for i in (0, 2, 3, 5, nm_index))
 
-            position = int(position)
-            nm = int(nm[5:])  # NM:i:2 --> 2
-            mismatches = mismatches[5:]  # MD:Z:1T32A67 --> 1T32A67
+            if read_id not in read_details:
+                read_details[read_id] = (int(nm[5:]), length_on_reference(cigar))
 
-            matrix_pos[allele_id][read_id] = position  # SAM indexes from 1, so null elements are not hits
-
-            if (nm, cigar, mismatches) not in nm_cigar_mismatch_set:
-                descriptor_index = len(nm_cigar_mismatch_set)
-                nm_cigar_mismatch_set[(nm, cigar, mismatches)] = descriptor_index
-            else:
-                descriptor_index = nm_cigar_mismatch_set[(nm, cigar, mismatches)]
-
-            matrix_etc[allele_id][read_id] = descriptor_index
+            matrix_pos[allele_id][read_id] = int(position)  # SAM indexes from 1, so null elements are not hits
 
             counter += 1
             if counter in milestones:
@@ -179,12 +154,11 @@ def sam_to_hdf(samfile):
 
     # convert HLA:HLA00001 identifiers to HLA00001
     matrix_pos.rename(columns=lambda x: x.replace('HLA:', ''), inplace=True)
-    matrix_etc.rename(columns=lambda x: x.replace('HLA:', ''), inplace=True)
 
-    # make a DataFrame from descriptor triplet set
-    hit_descriptors = pd.DataFrame(nm_cigar_mismatch_set.keys(), columns=['NM', 'CIGAR', 'MD'])
+    details_df = pd.DataFrame.from_dict(read_details, orient='index')
+    details_df.columns = ['mismatches', 'read_length']
 
-    return matrix_pos, matrix_etc, hit_descriptors
+    return matrix_pos, details_df
 
 
 def get_compact_model(hit_df, to_bool=False):
@@ -448,43 +422,33 @@ def get_features(allele_id, features, feature_list):
 
 
 def calculate_coverage(alignment, features, alleles_to_plot, features_used):
-    assert len(alignment) in (3, 6, 7), ("Alignment tuple either has to have 3, 6 or 7 elements. First six: pos, etc, desc "
+    assert len(alignment) in (2, 4, 5), ("Alignment tuple either has to have 2, 4 or 5 elements. First four: pos, read_details "
         "once or twice depending on single or paired end, and an optional binary DF at the end for PROPER paired-end plotting")
 
-    if len(alignment) == 3:
-        matrix_pos, matrix_etc, hit_descriptors = alignment[:3]
+    if len(alignment) == 2:
+        matrix_pos, read_details = alignment[:2]
         pos = matrix_pos[alleles_to_plot]
-        etc = matrix_etc[alleles_to_plot]
-        hit = hit_descriptors  # TODO: just want a shorter name
-        hit_counts = pos.applymap(bool).sum(axis=1)  # how many of the selected alleles does a particular read hit? (unambiguous hit or not)
+        hit_counts = np.sign(pos).sum(axis=1)  # how many of the selected alleles does a particular read hit? (unambiguous hit or not)
         # if only a single allele is fed to this function that has no hits at all, we still want to create a null-matrix
         # for it. Its initialization depends on max_ambiguity (it's the size of one of its dimensions) so we set this to 1 at least.
         max_ambiguity = max(1, hit_counts.max())
-        to_process = [(pos, etc, hit, hit_counts)]
-    elif len(alignment) == 6:
-        matrix_pos1, matrix_etc1, hit_descriptors1, matrix_pos2, matrix_etc2, hit_descriptors2 = alignment
+        to_process = [(pos, read_details, hit_counts)]
+    elif len(alignment) == 4:
+        matrix_pos1, read_details1, matrix_pos2, read_details2 = alignment
         pos1 = matrix_pos1[alleles_to_plot]
-        etc1 = matrix_etc1[alleles_to_plot]
-        hit1 = hit_descriptors1
         pos2 = matrix_pos2[alleles_to_plot]
-        etc2 = matrix_etc2[alleles_to_plot]
-        hit2 = hit_descriptors2
-        hit_counts1 = pos1.applymap(bool).sum(axis=1)
-        hit_counts2 = pos2.applymap(bool).sum(axis=1)
+        hit_counts1 = np.sign(pos1).sum(axis=1)
+        hit_counts2 = np.sign(pos2).sum(axis=1)
         max_ambiguity = max(1, hit_counts1.max(), hit_counts2.max())
-        to_process = [(pos1, etc1, hit1, hit_counts1), (pos2, etc2, hit2, hit_counts2)]
+        to_process = [(pos1, read_details1, hit_counts1), (pos2, read_details2, hit_counts2)]
     else:
-        matrix_pos1, matrix_etc1, hit_descriptors1, matrix_pos2, matrix_etc2, hit_descriptors2, binary = alignment
+        matrix_pos1, read_details1, matrix_pos2, read_details2, binary = alignment
         binx = binary[alleles_to_plot]
-        pos1 = matrix_pos1[alleles_to_plot].ix[binx.index] * binx
-        pos2 = matrix_pos2[alleles_to_plot].ix[binx.index] * binx
-        etc1 = matrix_etc1[alleles_to_plot].ix[binx.index] * binx
-        etc2 = matrix_etc2[alleles_to_plot].ix[binx.index] * binx
-        hit1 = hit_descriptors1
-        hit2 = hit_descriptors2
+        pos1 = matrix_pos1[alleles_to_plot].loc[binx.index] * binx
+        pos2 = matrix_pos2[alleles_to_plot].loc[binx.index] * binx
         hit_counts = binx.sum(axis=1)
         max_ambiguity = max(1, hit_counts.max())
-        to_process = [(pos1, etc1, hit1, hit_counts), (pos2, etc2, hit2, hit_counts)]
+        to_process = [(pos1, read_details1, hit_counts), (pos2, read_details2, hit_counts)]
 
     coverage_matrices = []
 
@@ -502,15 +466,14 @@ def calculate_coverage(alignment, features, alleles_to_plot, features_used):
         # were pre-processed to only plot reads where both pairs map, etc. but the point is that superimposing the two
         # will provide the correct result.
 
-        for pos, etc, hit, hit_counts in to_process:
+        for pos, read_details, hit_counts in to_process:
             reads = pos[pos[allele]!=0].index  # reads hitting allele: coverage plot will be built using these
-            for i_pos, i_cigar, i_mismatches, i_hitcount in zip(
-                    pos.ix[reads][allele],
-                    etc.ix[reads][allele].map(hit['CIGAR']),
-                    etc.ix[reads][allele].map(hit['NM']),
+            for i_pos, i_read_length, i_mismatches, i_hitcount in zip(
+                    pos.loc[reads][allele],
+                    read_details.loc[reads]['read_length'],
+                    read_details.loc[reads]['mismatches'],
                     hit_counts[reads]):
-                read_length = length_on_reference(i_cigar)  # this does not neccessarily equal actual read length because of indel mismatches
-                coverage[bool(i_mismatches)][i_hitcount-1][i_pos-1:i_pos-1+read_length] += 1
+                coverage[bool(i_mismatches)][i_hitcount-1][i_pos-1:i_pos-1+i_read_length] += 1
 
         coverage_matrices.append((allele, coverage))
     return coverage_matrices
