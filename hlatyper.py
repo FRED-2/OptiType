@@ -52,7 +52,7 @@ def store_dataframes(out_hdf, **kwargs):
     complevel = kwargs.pop('complevel', 9)   # default complevel & complib values if
     complib = kwargs.pop('complib', 'zlib')  # not explicitly asked for as arguments
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Storing %d DataFrames in file %s with compression settings %d %s...' % (len(kwargs), out_hdf, complevel, complib)
 
     store = pd.HDFStore(out_hdf, complevel=complevel, complib=complib)  # TODO: WRITE ONLY? it probably appends now
@@ -60,7 +60,7 @@ def store_dataframes(out_hdf, **kwargs):
         store[table_name] = dataframe
     store.close()
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'DataFrames stored in file.'
 
 
@@ -78,8 +78,8 @@ def load_hdf(in_hdf, as_dict=False, *args):  # isn't really neccesary, but makes
         return store  # store doesn't get closed! Either the user closes it manually or gets closed on exit
 
 
-def sam_to_hdf(samfile, **kwargs):
-    if kwargs.get("verbosity", 0):
+def sam_to_hdf(samfile):
+    if VERBOSE:
         print now(), 'Loading alleles and read IDs from %s...' % samfile
 
     # run through the SAM file once to see how many reads and alleles we are dealing with
@@ -119,7 +119,7 @@ def sam_to_hdf(samfile, **kwargs):
                     print '\tNo NM-tag found in SAM file!'
                     nm_index = None
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), '%d alleles and %d reads found.' % (len(allele_ids), len(read_ids))
         print now(), 'Initializing mapping matrix...'
 
@@ -128,7 +128,7 @@ def sam_to_hdf(samfile, **kwargs):
     matrix_pos = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
     matrix_etc = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), '%dx%d mapping matrix initialized. Populating %d hits from SAM file...' % (len(read_ids), len(allele_ids), total_hits)
 
     milestones = [x * total_hits / 10 for x in range(1, 11)]  # for progress bar
@@ -172,9 +172,9 @@ def sam_to_hdf(samfile, **kwargs):
             counter += 1
             if counter in milestones:
                 percent += 10
-                if kwargs.get("verbosity", 0):
+                if VERBOSE:
                     print '\t%d%% completed' % percent
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), '%d elements filled. Matrix sparsity: 1 in %.2f' % (counter, matrix_pos.shape[0]*matrix_pos.shape[1]/float(counter))
 
     # convert HLA:HLA00001 identifiers to HLA00001
@@ -192,9 +192,9 @@ def get_compact_model(hit_df, to_bool=False):
 # into a smaller matrix DF that removes duplicate rows and creates the "occurence" vector
 # with the number of rows the representative read represents
 
-    hit_df = hit_df.ix[hit_df.any(axis=1)]  # remove all-zero rows
+    hit_df = hit_df.loc[hit_df.any(axis=1)]  # remove all-zero rows
     if to_bool:
-        hit_df = hit_df.applymap(bool)
+        hit_df = np.sign(hit_df)  # much faster than hit_df.applymap(bool)
     occurence = {r[0]: len(r) for r in hit_df.groupby(hit_df.columns.tolist()).groups.itervalues()}
     unique_mtx = hit_df.drop_duplicates()
     return unique_mtx, occurence
@@ -212,17 +212,19 @@ def mtx_to_sparse_dict(hit_df):
     #return {(read, allele): 1 for read in hit_df.index for allele in hit_df.columns if hit_df[allele][read]>0}  # awfully inefficient
 
 
-def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
-    if kwargs.get("verbosity", 0):
+def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
+    if VERBOSE:
         print now(), 'Loading IMGT allele dat file...'
 
     alleles = OrderedDict()
 
     with open(imgt_dat, 'rU') as handle:
         for i, record in enumerate(SeqIO.parse(handle, "imgt")):
+            # TODO: IMGT has changed the ID system. Now it's HLA00001.1 or HLA12345.2 showing versions. I'll get rid of this now though
+            record.id = record.id.split('.')[0]
             alleles[record.id] = record
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Initializing allele DataFrame...'
 
     '''
@@ -248,7 +250,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
     table = pd.DataFrame(index=alleles.keys(), columns=allele_info.split())
     sequences = []
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Filling DataFrame with allele data...'
 
     all_features = []  # contains tuples: (HLA id, feature type, feature number, feature start, feature end)
@@ -257,16 +259,16 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
 
         allele_type = allele.description.replace('HLA-', '').split(',')[0]
 
-        table.ix[allele.id]['id'] = allele.id
-        table.ix[allele.id]['type'] = allele_type
-        table.ix[allele.id]['4digit'] = ':'.join(allele_type.split(':')[:2])
-        table.ix[allele.id]['locus'] = allele_type.split('*')[0]
-        table.ix[allele.id]['flags'] = 0 if allele_type[-1].isdigit() else 1
-        table.ix[allele.id]['len_dat'] = len(str(allele.seq))
-        table.ix[allele.id]['len_gen'] = 0   # TODO: IT STILL DOESNT SOLVE PERFORMANCEWARNING!
-        table.ix[allele.id]['len_nuc'] = 0   # we initialize these nulls so that we don't get a
-        table.ix[allele.id]['full_gen'] = 0  # PerformanceWarning + pickling when storing HDF
-        table.ix[allele.id]['full_nuc'] = 0  # because of NaNs (they don't map to ctypes)
+        table.loc[allele.id]['id'] = allele.id
+        table.loc[allele.id]['type'] = allele_type
+        table.loc[allele.id]['4digit'] = ':'.join(allele_type.split(':')[:2])
+        table.loc[allele.id]['locus'] = allele_type.split('*')[0]
+        table.loc[allele.id]['flags'] = 0 if allele_type[-1].isdigit() else 1
+        table.loc[allele.id]['len_dat'] = len(str(allele.seq))
+        table.loc[allele.id]['len_gen'] = 0   # TODO: IT STILL DOESNT SOLVE PERFORMANCEWARNING!
+        table.loc[allele.id]['len_nuc'] = 0   # we initialize these nulls so that we don't get a
+        table.loc[allele.id]['full_gen'] = 0  # PerformanceWarning + pickling when storing HDF
+        table.loc[allele.id]['full_nuc'] = 0  # because of NaNs (they don't map to ctypes)
         sequences.append((allele.id, 'dat', str(allele.seq)))
 
 
@@ -296,25 +298,27 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
         cds = [f for f in allele.features if f.type == 'CDS']
         if cds:
             if sum(map(len, [f for f in features if f.type == 'exon'])) != len(cds[0]):
-                print "\tCDS length doesn't match sum of exons for", allele.id, allele_type
-                table.ix[allele.id]['flags'] += 2
+                if VERBOSE:
+                    print "\tCDS length doesn't match sum of exons for", allele.id, allele_type
+                table.loc[allele.id]['flags'] += 2
         else:
-            print "\tNo CDS found for", allele.id, allele_type
-            table.ix[allele.id]['flags'] += 2
+            if VERBOSE:
+                print "\tNo CDS found for", allele.id, allele_type
+            table.loc[allele.id]['flags'] += 2
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Loading gen and nuc files...'
 
     with open(fasta_gen, 'r') as fasta_gen:
         for record in SeqIO.parse(fasta_gen, 'fasta'):
             allele_id = record.id.replace('HLA:', '')
-            table.ix[allele_id]['len_gen'] = len(record.seq)
+            table.loc[allele_id]['len_gen'] = len(record.seq)
             sequences.append((allele_id, 'gen', str(record.seq)))
 
     with open(fasta_nuc, 'r') as fasta_nuc:
         for record in SeqIO.parse(fasta_nuc, 'fasta'):
             allele_id = record.id.replace('HLA:', '')
-            table.ix[allele_id]['len_nuc'] = len(record.seq)
+            table.loc[allele_id]['len_nuc'] = len(record.seq)
             sequences.append((allele_id, 'nuc', str(record.seq)))
 
     # convert list of tuples into DataFrame for features and sequences
@@ -330,26 +334,28 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
         exons_for_locus[i_locus] = i_group[i_group['feature']=='exon']['number'].max()
 
     # for i_id, i_group in joined.groupby('id'):
-    #     max_exons = exons_for_locus[table.ix[i_id]['locus']]
+    #     max_exons = exons_for_locus[table.loc[i_id]['locus']]
     #     if len(i_group) >= 2*max_exons-1:
     #         print i_id, 'is fully annotated on all exons and introns and UTRs'
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Checking dat features vs gen/nuc sequences...'
 
     for allele, features in joined.groupby('id'):
         row = features.irow(0)  # first row of the features subtable. Contains all allele information because of the join
         sum_features_length = features['length'].sum()
-        sum_exons_length = features.ix[features['feature']=='exon']['length'].sum()
+        sum_exons_length = features.loc[features['feature']=='exon']['length'].sum()
         if row['len_gen']>0 and row['len_gen'] != sum_features_length:
-            print "\tFeature lengths don't add up to gen sequence length", allele, row['len_gen'], sum_features_length, row['type']
-            table.ix[allele]['flags'] += 4
+            if VERBOSE:
+                print "\tFeature lengths don't add up to gen sequence length", allele, row['len_gen'], sum_features_length, row['type']
+            table.loc[allele]['flags'] += 4
         if row['len_nuc']>0 and row['len_nuc'] != sum_exons_length:
-            print "\tExon lengths don't add up to nuc sequence length", allele, row['len_nuc'], sum_exons_length, row['type']
-            table.ix[allele]['flags'] += 8
+            if VERBOSE:
+                print "\tExon lengths don't add up to nuc sequence length", allele, row['len_nuc'], sum_exons_length, row['type']
+            table.loc[allele]['flags'] += 8
 
-    if kwargs.get("verbosity", 0):
-        print now(), 'Sanity check finished...'
+    if VERBOSE:
+        print now(), 'Sanity check finished. Computing feature sequences...'
 
     return table, all_features, sequences
 
@@ -375,7 +381,7 @@ def prune_identical_reads(binary_mtx):
     # return binary_mtx.drop_duplicates()
     # # faster:
     reads_to_keep = binary_mtx.dot(np.random.rand(binary_mtx.shape[1])).drop_duplicates().index
-    return binary_mtx.ix[reads_to_keep]
+    return binary_mtx.loc[reads_to_keep]
 
 
 def prune_overshadowed_alleles(binary_mtx):
@@ -396,7 +402,7 @@ def prune_overshadowed_alleles(binary_mtx):
         potential_superiors = new_covariance[ii][new_covariance[ii]==diagonal[ii]].index
         if any(diagonal[potential_superiors] > diagonal[ii]):
             overshadowed.append(ii)
-    non_overshadowed = covariance.columns.diff(overshadowed)
+    non_overshadowed = covariance.columns.difference(overshadowed)
     return non_overshadowed
 
 def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
@@ -412,8 +418,8 @@ def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
 
     common_read_ids = binary_1.index.intersection(binary_2.index)
 
-    b_1 = binary_1.ix[common_read_ids]
-    b_2 = binary_2.ix[common_read_ids]
+    b_1 = binary_1.loc[common_read_ids]
+    b_2 = binary_2.loc[common_read_ids]
     return b_1 * b_2  # elementwise AND
 
 
@@ -425,8 +431,8 @@ def get_features(allele_id, features, feature_list):
     else:
         complete_allele = allele_id
 
-    feats_complete = {(of['feature'], of['number']): of for _, of in features.ix[features['id']==complete_allele].iterrows()}
-    feats_partial = {(of['feature'], of['number']): of for _, of in features.ix[features['id']==partial_allele].iterrows()} if '_' in allele_id else feats_complete
+    feats_complete = {(of['feature'], of['number']): of for _, of in features.loc[features['id']==complete_allele].iterrows()}
+    feats_partial = {(of['feature'], of['number']): of for _, of in features.loc[features['id']==partial_allele].iterrows()} if '_' in allele_id else feats_complete
 
     feats_to_include = []
 
@@ -519,10 +525,10 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
 
     def allele_sorter(allele_cov_mtx_tuple):
         allele, _ = allele_cov_mtx_tuple
-        return allele_data.ix[allele.split('_')[0]]['type']
+        return allele_data.loc[allele.split('_')[0]]['type']
 
     def get_allele_locus(allele):
-        return allele_data.ix[allele.split('_')[0]]['locus']
+        return allele_data.loc[allele.split('_')[0]]['locus']
 
     number_of_loci = len(set((get_allele_locus(allele) for allele, _ in coverage_matrices)))
 
@@ -544,16 +550,14 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
 
         if '_' in allele:
             partial, complete = allele.split('_')
-            plot_title = '%s (introns from %s)' % (allele_data.ix[partial]['type'], allele_data.ix[complete]['type']) # , allele for debugging (original ID)
+            plot_title = '%s (introns from %s)' % (allele_data.loc[partial]['type'], allele_data.loc[complete]['type']) # , allele for debugging (original ID)
         else:
-            plot_title = allele_data.ix[allele]['type'] # + allele for debugging original ID
+            plot_title = allele_data.loc[allele]['type'] # + allele for debugging original ID
 
         if prev_locus != get_allele_locus(allele):  # new locus, start new row
             i_subplot = i_subplot + columns - ((i_subplot-1) % columns)
         else:
             i_subplot += 1
-
-        #print i_subplot
 
         prev_locus = get_allele_locus(allele)
 
