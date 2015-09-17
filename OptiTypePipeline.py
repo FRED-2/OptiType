@@ -209,8 +209,9 @@ if __name__ == '__main__':
     # Constants
     VERBOSE = ht.VERBOSE = bool(args.verbose)  # set verbosity setting in hlatyper too
     COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %s -o %s.sam %s %s"
-    ALLELE_HDF = config.get("LIBRARIES", "ALLELES")
-    MAPPING_REF = {'gen': config.get("LIBRARIES", "DNA_REF"), 'nuc': config.get("LIBRARIES", "RNA_REF")}
+    ALLELE_HDF = os.path.join(this_dir, 'data/alleles.h5')
+    MAPPING_REF = {'gen': os.path.join(this_dir, 'data/hla_reference_dna.fasta'),
+                   'nuc': os.path.join(this_dir, 'data/hla_reference_rna.fasta')}
     MAPPING_CMD = config.get("MAPPING", "RAZERS3")+" "+COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
     out_dir = args.outdir+date if args.outdir[-1] == "/" else args.outdir+"/"+date

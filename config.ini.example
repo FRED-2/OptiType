@@ -1,0 +1,9 @@
+[MAPPING]
+# RazerS3 absolute binary path
+RAZERS3=/path/to/razerS3
+THREADS=16
+
+[OPTIMIZATION]
+# Note: the solver has to be supported by Coopr
+SOLVER=glpk
+THREADS=1
