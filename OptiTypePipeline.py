@@ -146,6 +146,10 @@ def get_types(allele_id):
 
 
 if __name__ == '__main__':
+
+    this_dir = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    config_default = os.path.join(this_dir, 'config.ini')
+
     parser = argparse.ArgumentParser(description=' OptiType: 4-digit HLA typer', prog='OptiType')
     parser.add_argument('--input','-i',
                       nargs='+',
@@ -180,10 +184,15 @@ if __name__ == '__main__':
                       action="store_true",
                       help="Set verbose mode on."
                       )
+    parser.add_argument('--config', '-c',
+                      type=argparse.FileType('r'),
+                      default=config_default,
+                      help="Path to config file. (Default: config.ini in the same directory as this script)"
+                      )
 
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
-    config.read("./config.ini")
+    config.read(args.config.name)
 
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)        
