@@ -24,4 +24,8 @@ deletebam=true
 # the other end falls outside the reference region). This setting allows the
 # user to keep them with an optionally reduced weight.
 # [0: discarded, 1: as valuable as a paired read]
-#unpaired_weight=0.2  # we'll enable this setting later
+unpaired_weight=0.2  # we'll enable this setting later
+
+# Reads with their two ends best-mapping to two disjoint sets of alleles can be
+# either omitted (default) or either of their ends treated as unpaired hits.
+use_discordant=false

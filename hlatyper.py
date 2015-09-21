@@ -239,16 +239,23 @@ def pysam_to_hdf(samfile):
     return pos_df, details_df
 
 
-def get_compact_model(hit_df, to_bool=False):
-# turn a hit matrix dataframe (can be mapping position matrix if used with to_bool=True)
-# into a smaller matrix DF that removes duplicate rows and creates the "occurence" vector
-# with the number of rows the representative read represents
+def get_compact_model(hit_df, weak_hit_df=None, weight=None):
+# turn a binary hit matrix dataframe into a smaller matrix DF that removes duplicate rows and
+# creates the "occurence" vector with the number of rows the representative read represents.
+# Note: one can pass "weak" hits (e.g., unpaired reads) and use them with a lower weight.
 
     hit_df = hit_df.loc[hit_df.any(axis=1)]  # remove all-zero rows
-    if to_bool:
-        hit_df = np.sign(hit_df)  # much faster than hit_df.applymap(bool)
     occurence = {r[0]: len(r) for r in hit_df.groupby(hit_df.columns.tolist()).groups.itervalues()}
-    unique_mtx = hit_df.drop_duplicates()
+
+    if weak_hit_df is not None:
+        weak_hit_df = weak_hit_df.loc[weak_hit_df.any(axis=1)]
+        assert 0 < weight <= 1, 'weak hit weight must be in (0, 1]'
+        weak_occ = {r[0]: len(r)*weight for r in weak_hit_df.groupby(weak_hit_df.columns.tolist()).groups.itervalues()}
+        occurence.update(weak_occ)
+        unique_mtx = pd.concat([hit_df.drop_duplicates(), weak_hit_df.drop_duplicates()])
+    else:
+        unique_mtx = hit_df.drop_duplicates()
+    
     return unique_mtx, occurence
 
 
@@ -480,10 +487,22 @@ def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
         binary_2.index = map(id_cleaning, binary_2.index)
 
     common_read_ids = binary_1.index.intersection(binary_2.index)
+    only_1 = binary_1.index.difference(binary_2.index)
+    only_2 = binary_2.index.difference(binary_1.index)
 
     b_1 = binary_1.loc[common_read_ids]
     b_2 = binary_2.loc[common_read_ids]
-    return b_1 * b_2  # elementwise AND
+    b_12 = b_1 * b_2  # elementwise AND
+    b_ispaired = b_12.any(axis=1)  # reads with at least one allele w/ paired hits
+    b_paired = b_12.loc[b_ispaired]
+    b_mispaired = b_1.loc[~b_ispaired] + b_2.loc[~b_ispaired]  # elementwise AND where two ends only hit different alleles
+    b_unpaired = pd.concat([binary_1.loc[only_1], binary_2.loc[only_2]])  # concatenation for reads w/ just one end mapping anywhere
+
+    if VERBOSE:
+        print now(), ('Alignment pairing completed. %d paired, %d unpaired, %d discordant ' %
+            (b_paired.shape[0], b_unpaired.shape[0], b_mispaired.shape[0]))
+
+    return b_paired, b_mispaired, b_unpaired
 
 
 def get_features(allele_id, features, feature_list):

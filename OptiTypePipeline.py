@@ -194,6 +194,9 @@ if __name__ == '__main__':
     config = ConfigParser.ConfigParser()
     config.read(args.config.name)
 
+    unpaired_weight = config.getfloat('behavior', 'unpaired_weight')
+    use_discordant = config.getboolean('behavior', 'use_discordant')
+
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)        
 
@@ -267,21 +270,28 @@ if __name__ == '__main__':
         if len(set([r[-1] for r in id1])) == 1 and len(set([r[-1] for r in id2])) == 1:
             # if this case is true you have to edit also all pos,etc,desc indices such that the plotting works correctly
             # again .. maybe it is also neccessary to test for the last two characters
-            binary1.index = map(lambda x: x[:-1], binary1.index)
-            binary2.index = map(lambda x: x[:-1], binary2.index)
-            pos.index = map(lambda x: x[:-1], pos.index)
-            pos2.index = map(lambda x: x[:-1], pos2.index)
-            etc.index = map(lambda x: x[:-1], etc.index)
-            etc2.index = map(lambda x: x[:-1], etc2.index)
-            binary = ht.create_paired_matrix(binary1, binary2)
-        else:
-            nof_reads1 = float(len(id1))*0.1
-            if float(len(id1.intersection(id2))) >= nof_reads1:
-                binary =  ht.create_paired_matrix(binary1, binary2)
+            cut_last_char = lambda x: x[:-1]
+            binary1.index = map(cut_last_char, binary1.index)
+            binary2.index = map(cut_last_char, binary2.index)
+            pos.index = map(cut_last_char, pos.index)
+            pos2.index = map(cut_last_char, pos2.index)
+            read_details.index = map(cut_last_char, read_details.index)
+            read_details2.index = map(cut_last_char, read_details2.index)
+            
+        binary_p, binary_mis, binary_un =  ht.create_paired_matrix(binary1, binary2)
+
+        if binary_p.shape[0] < len(id1) * 0.1:
+            print ("\nWARNING: Less than 10% of reads could be paired. Consider an appropriate unpaired_weight setting "
+             "in your config file (currently %.3f), because you may need to resort to using unpaired reads.") % unpaired_weight
+
+        if unpaired_weight > 0:
+            if use_discordant:
+                binary = pd.concat([binary_p, binary_un, binary_mis])
             else:
-                print "\nCould not match paired-end pairs. Switching to single-end pipeline."
-                binary = binary1
-                is_paired = False
+                binary = pd.concat([binary_p, binary_un])
+        else:
+            binary = binary_p
+
     else:
         sample_1 = out_dir + "/" + date + "_0.sam"
         pos, read_details = ht.pysam_to_hdf(sample_1)
@@ -314,7 +324,16 @@ if __name__ == '__main__':
 
     if VERBOSE:
         print "\n", ht.now(), 'Creating compact model...'
-    compact_mtx, compact_occ = ht.get_compact_model(binary)
+
+    if is_paired and unpaired_weight > 0:
+        if use_discordant:
+            compact_mtx, compact_occ = ht.get_compact_model(binary_p[minimal_alleles],
+                pd.concat([binary_un, binary_mis])[minimal_alleles], weight=unpaired_weight)
+        else:
+            compact_mtx, compact_occ = ht.get_compact_model(binary_p[minimal_alleles],
+                binary_un[minimal_alleles], weight=unpaired_weight)
+    else:
+        compact_mtx, compact_occ = ht.get_compact_model(binary)
 
     allele_ids = binary.columns
 
@@ -349,6 +368,6 @@ if __name__ == '__main__':
     hlatype = result.irow(0)[["A1", "A2", "B1", "B2", "C1", "C2"]].drop_duplicates().dropna()
     features_used = [('intron', 1), ('exon', 2), ('intron', 2), ('exon', 3), ('intron', 3)] \
                      if not args.rna else [('exon',2),('exon',3)]
-    plot_variables = [pos, read_details, pos2, read_details2, binary] if is_paired else [pos, read_details]
+    plot_variables = [pos, read_details, pos2, read_details2, binary_p] if is_paired else [pos, read_details]
     coverage_mat = ht.calculate_coverage(plot_variables, features, hlatype, features_used)
     ht.plot_coverage(out_plot, coverage_mat, table, features, features_used)
