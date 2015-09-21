@@ -208,11 +208,11 @@ if __name__ == '__main__':
 
     # Constants
     VERBOSE = ht.VERBOSE = bool(args.verbose)  # set verbosity setting in hlatyper too
-    COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %s -o %s.sam %s %s"
+    COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %d -o %s.sam %s %s"
     ALLELE_HDF = os.path.join(this_dir, 'data/alleles.h5')
     MAPPING_REF = {'gen': os.path.join(this_dir, 'data/hla_reference_dna.fasta'),
                    'nuc': os.path.join(this_dir, 'data/hla_reference_rna.fasta')}
-    MAPPING_CMD = config.get("MAPPING", "RAZERS3")+" "+COMMAND
+    MAPPING_CMD = config.get("mapping", "razers3")+" "+COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
     out_dir = args.outdir+date if args.outdir[-1] == "/" else args.outdir+"/"+date
 
@@ -230,7 +230,7 @@ if __name__ == '__main__':
         if VERBOSE:
             print "\n", ht.now(), "Mapping %s to %s reference..." % (os.path.basename(sample), ref_type.upper())
         sample_out = out_dir + "/" + date + "_" + str(i)
-        subprocess.call(MAPPING_CMD % (config.get("MAPPING", "THREADS"), sample_out,
+        subprocess.call(MAPPING_CMD % (config.getint("mapping", "threads"), sample_out,
                                        MAPPING_REF[ref_type], sample), shell=True)
 
     # sam-to-hdf5
@@ -248,8 +248,9 @@ if __name__ == '__main__':
         pos2, read_details2 = ht.pysam_to_hdf(sample_2)
         binary2 = np.sign(pos2)  # dtype=np.uint16
 
-        os.remove(sample_1)
-        os.remove(sample_2)
+        if config.getboolean('behavior', 'deletebam'):
+          os.remove(sample_1)
+          os.remove(sample_2)
         
         id1 = set(binary1.index)
         id2 = set(binary2.index)
@@ -328,7 +329,7 @@ if __name__ == '__main__':
         print "\n", ht.now(), 'Initializing OptiType model...'
 
     op = OptiType(sparse_dict, compact_occ, groups_4digit, table, args.beta, 2,
-                  config.get("OPTIMIZATION", "SOLVER"), int(config.get("OPTIMIZATION", "THREADS")), verbosity=VERBOSE)
+                  config.get("ilp", "solver"), int(config.get("ilp", "threads")), verbosity=VERBOSE)
     result = op.solve(args.enumerate)
 
     if VERBOSE:
