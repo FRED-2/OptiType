@@ -532,31 +532,40 @@ def get_features(allele_id, features, feature_list):
 def calculate_coverage(alignment, features, alleles_to_plot, features_used):
     assert len(alignment) in (2, 4, 5), ("Alignment tuple either has to have 2, 4 or 5 elements. First four: pos, read_details "
         "once or twice depending on single or paired end, and an optional binary DF at the end for PROPER paired-end plotting")
+    has_pairing_info = (len(alignment) == 5)
 
     if len(alignment) == 2:
         matrix_pos, read_details = alignment[:2]
         pos = matrix_pos[alleles_to_plot]
+        pairing = np.sign(pos) * 2  # see explanation on the else branch. These mean unpaired hits.
         hit_counts = np.sign(pos).sum(axis=1)  # how many of the selected alleles does a particular read hit? (unambiguous hit or not)
         # if only a single allele is fed to this function that has no hits at all, we still want to create a null-matrix
         # for it. Its initialization depends on max_ambiguity (it's the size of one of its dimensions) so we set this to 1 at least.
         max_ambiguity = max(1, hit_counts.max())
-        to_process = [(pos, read_details, hit_counts)]
-    elif len(alignment) == 4:
+        to_process = [(pos, read_details, hit_counts, pairing)]
+    elif len(alignment) == 4:  # TODO: deprecated. We don't use this, it should probably be taken out.
         matrix_pos1, read_details1, matrix_pos2, read_details2 = alignment
         pos1 = matrix_pos1[alleles_to_plot]
         pos2 = matrix_pos2[alleles_to_plot]
+        pairing1 = np.sign(pos1) * 2  # every read is considered unpaired
+        pairing2 = np.sign(pos2) * 2
         hit_counts1 = np.sign(pos1).sum(axis=1)
         hit_counts2 = np.sign(pos2).sum(axis=1)
         max_ambiguity = max(1, hit_counts1.max(), hit_counts2.max())
-        to_process = [(pos1, read_details1, hit_counts1), (pos2, read_details2, hit_counts2)]
+        to_process = [(pos1, read_details1, hit_counts1, pairing1), (pos2, read_details2, hit_counts2, pairing2)]
     else:
-        matrix_pos1, read_details1, matrix_pos2, read_details2, binary = alignment
-        binx = binary[alleles_to_plot]
-        pos1 = matrix_pos1[alleles_to_plot].loc[binx.index] * binx
-        pos2 = matrix_pos2[alleles_to_plot].loc[binx.index] * binx
-        hit_counts = binx.sum(axis=1)
-        max_ambiguity = max(1, hit_counts.max())
-        to_process = [(pos1, read_details1, hit_counts), (pos2, read_details2, hit_counts)]
+        matrix_pos1, read_details1, matrix_pos2, read_details2, pairing_binaries = alignment
+        bin_p, bin_u, bin_m = pairing_binaries
+        pos1 = matrix_pos1[alleles_to_plot]
+        pos2 = matrix_pos2[alleles_to_plot]
+        # pairing's values - 0: no hit, 1: paired hit, 2: unpaired hit, 3: discordantly paired hit
+        pairing = pd.concat([bin_p[alleles_to_plot], bin_u[alleles_to_plot]*2, bin_m[alleles_to_plot]*3])
+        pairing1 = pairing.loc[pos1.index]  # pairing information for first ends' hit matrix
+        pairing2 = pairing.loc[pos2.index]  # pairing information for second ends' hit matrix
+        hit_counts1 = np.sign(pairing1).sum(axis=1)
+        hit_counts2 = np.sign(pairing2).sum(axis=1)
+        max_ambiguity = max(1, hit_counts1.max(), hit_counts2.max())
+        to_process = [(pos1, read_details1, hit_counts1, pairing1), (pos2, read_details2, hit_counts2, pairing2)]
 
     coverage_matrices = []
 
@@ -564,24 +573,29 @@ def calculate_coverage(alignment, features, alleles_to_plot, features_used):
         allele_features = get_features(allele, features, features_used)
         allele_length = allele_features['length'].sum()
 
-        # typically 1-3 rows x sequence_length columns, plus a dimension for perfect hits vs hits with mismatches.
-        # Unique hits go in first row, reads hitting 2 alleles in second, etc.
-        # Nth row stands for reads hitting N alleles (ie. read might have come from one of N alleles)
-        coverage = np.zeros((2, max_ambiguity, allele_length), dtype=int)
+        # Dimensions:
+        #   1st - 0: perfect hit, 1: hit w/ mismatch(es)
+        #   2nd - 0: paired, 1: unpaired, 2: discordantly paired  # maybe introduce unpaired despite being paired on other alleles
+        #   3rd - 0: unique hit, 1: ambiguous hit between two alleles, ... n: ambiguous bw/ n+1 alleles
+        #   4th - 0 ... [sequence length]
+        coverage = np.zeros((2, 3, max_ambiguity, allele_length), dtype=int)
 
         # to_process is a list containing tuples with mapping/position/hit property dataframes to superimpose.
         # For single-end plotting to_process has just one element. For paired end, to_process has two elements that
         # were pre-processed to only plot reads where both pairs map, etc. but the point is that superimposing the two
         # will provide the correct result.
 
-        for pos, read_details, hit_counts in to_process:
+        for pos, read_details, hit_counts, pairing_info in to_process:
             reads = pos[pos[allele]!=0].index  # reads hitting allele: coverage plot will be built using these
-            for i_pos, i_read_length, i_mismatches, i_hitcount in zip(
+            for i_pos, i_read_length, i_mismatches, i_hitcount, i_pairing in zip(
                     pos.loc[reads][allele],
                     read_details.loc[reads]['read_length'],
                     read_details.loc[reads]['mismatches'],
-                    hit_counts[reads]):
-                coverage[bool(i_mismatches)][i_hitcount-1][i_pos-1:i_pos-1+i_read_length] += 1
+                    hit_counts[reads],
+                    pairing_info.loc[reads][allele]):
+                if not i_pairing:
+                    continue  # or i_pairing = 4. Happens if one end maps to the allele but a different allele has a full paired hit.
+                coverage[bool(i_mismatches)][i_pairing-1][i_hitcount-1][i_pos-1:i_pos-1+i_read_length] += 1
 
         coverage_matrices.append((allele, coverage))
     return coverage_matrices
@@ -610,7 +624,21 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
     # subplot_rows = 3 # TODO
     subplot_rows = number_of_loci
 
-    area_colors = [(.4, .7, .4), (.6, .9, .6), (.9, .3, .3), (.9, .6, .6)]  # colors: unique perfect hits, shared perfect hits, unique mismatch hits, shared mismatch hits
+    area_colors = [  # stacked plot colors
+        (.4, .7, .4), # perfect, paired, unique
+        (.9, .3, .3), # mismatch, paired, unique
+        (.4, .7, .5), # perfect, unpaired, unique
+        (.9, .3, .4), # mismatch, unpaired, unique
+        (.4, .7, .6), # perfect, mispaired, unique
+        (.9, .3, .5), # mismatch, mispaired, unique
+
+        (.6, .9, .6), # perfect, paired, shared
+        (.9, .6, .6), # mismatch, paired, shared
+        (.6, .9, .7), # perfect, unpaired, shared
+        (.9, .6, .7), # mismatch, unpaired, shared
+        (.6, .9, .8), # perfect, mispaired, shared
+        (.9, .6, .8)] # mismatch, mispaired, shared
+
     figure = pylab.figure(figsize=(box_size[0]*columns, box_size[1]*subplot_rows), dpi=dpi)  # TODO: dpi doesn't seem to do shit. Is it stuck in 100?
 
     coverage_matrices = sorted(coverage_matrices, key=allele_sorter)  # so that the A alleles come first, then B, and so on.
@@ -634,15 +662,24 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
 
         plot = figure.add_subplot(subplot_rows, columns, i_subplot, adjustable='box')
 
-        _, max_ambig, seq_length = coverage.shape  # first dimension size is 2 (perfect vs mismatch)
+        _, _, max_ambig, seq_length = coverage.shape  # first two dimensions known (mismatched[2], pairing[3])
 
         shared_weighting = np.reciprocal(np.arange(max_ambig)+1.0)  # --> 1, 1/2, 1/3...
         shared_weighting[0] = 0  # --> 0, 1/2, 1/3, so the unique part doesn't get mixed in
 
-        unique_perfect  = start_end_zeros(coverage[0][0])
-        unique_mismatch = start_end_zeros(coverage[1][0])
-        shared_perfect  = start_end_zeros(shared_weighting.dot(coverage[0]))
-        shared_mismatch = start_end_zeros(shared_weighting.dot(coverage[1]))
+        perfect_paired_unique = start_end_zeros(coverage[0][0][0])
+        mismatch_paired_unique = start_end_zeros(coverage[1][0][0])
+        perfect_unpaired_unique = start_end_zeros(coverage[0][1][0])
+        mismatch_unpaired_unique = start_end_zeros(coverage[1][1][0])
+        perfect_mispaired_unique = start_end_zeros(coverage[0][2][0])
+        mismatch_mispaired_unique = start_end_zeros(coverage[1][2][0])
+
+        perfect_paired_shared = start_end_zeros(shared_weighting.dot(coverage[0][0]))
+        mismatch_paired_shared = start_end_zeros(shared_weighting.dot(coverage[1][0]))
+        perfect_unpaired_shared = start_end_zeros(shared_weighting.dot(coverage[0][1]))
+        mismatch_unpaired_shared = start_end_zeros(shared_weighting.dot(coverage[1][1]))
+        perfect_mispaired_shared = start_end_zeros(shared_weighting.dot(coverage[0][2]))
+        mismatch_mispaired_shared = start_end_zeros(shared_weighting.dot(coverage[1][2]))
 
         # Exon annotation
         i_start = 1  # position of last feature's end. It's one because we padded with zeros above
@@ -652,8 +689,20 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
             i_start += ft['length']
 
 
-        areas = plot.stackplot(np.arange(seq_length+2), unique_perfect+0.001, shared_perfect, unique_mismatch,  # seq_length+2 because of the zero padding at either end
-            shared_mismatch, linewidth=0, colors=area_colors, zorder=5)  # +0.001 so zeros are not -inf on the logplot, but somewhere well below the cutoff line. Makes everything nicer
+        areas = plot.stackplot(np.arange(seq_length+2), # seq_length+2 because of the zero padding at either end
+            perfect_paired_unique + 0.001,  # so that 0 isn't -inf on the logplot, but still below cutoff
+            mismatch_paired_unique,
+            perfect_unpaired_unique,
+            mismatch_unpaired_unique,
+            perfect_mispaired_unique,
+            mismatch_mispaired_unique,
+            perfect_paired_shared,
+            mismatch_paired_shared,
+            perfect_unpaired_shared,
+            mismatch_unpaired_shared,
+            perfect_mispaired_shared,
+            mismatch_mispaired_shared,
+            linewidth=0, colors=area_colors, zorder=5)
 
         for aa in areas:
             # if you output to pdf it strangely doesn't respect linewidth=0 perfectly, you'll have
