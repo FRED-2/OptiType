@@ -618,32 +618,34 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
     number_of_loci = len(set((get_allele_locus(allele) for allele, _ in coverage_matrices)))
 
     dpi = 50
-    box_size = (7, 3)
+    box_size = (7, 1)
 
     # subplot_rows = len(coverage_matrices)/columns + bool(len(coverage_matrices) % columns)  # instead of float division + rounding up
     # subplot_rows = 3 # TODO
-    subplot_rows = number_of_loci
+    subplot_rows = 3 * number_of_loci + 1  # rowspan=3 for each plot, legend at the bottom with third height and colspan=2
 
     area_colors = [  # stacked plot colors
-        (.4, .7, .4), # perfect, paired, unique
-        (.9, .3, .3), # mismatch, paired, unique
-        (.4, .7, .5), # perfect, unpaired, unique
-        (.9, .3, .4), # mismatch, unpaired, unique
-        (.4, .7, .6), # perfect, mispaired, unique
-        (.9, .3, .5), # mismatch, mispaired, unique
+        (0.26, 0.76, 0.26), # perfect, paired, unique
+        (0.40, 0.84, 0.40), # perfect, paired, shared
 
-        (.6, .9, .6), # perfect, paired, shared
-        (.9, .6, .6), # mismatch, paired, shared
-        (.6, .9, .7), # perfect, unpaired, shared
-        (.9, .6, .7), # mismatch, unpaired, shared
-        (.6, .9, .8), # perfect, mispaired, shared
-        (.9, .6, .8)] # mismatch, mispaired, shared
+        (0.99, 0.75, 0.20), # perfect, unpaired, unique
+        (0.99, 0.75, 0.20), # perfect, mispaired, unique
+        (0.99, 0.85, 0.35), # perfect, unpaired, shared
+        (0.99, 0.85, 0.35), # perfect, mispaired, shared
+
+        (0.99, 0.23, 0.23), # mismatch, paired, unique
+        (0.99, 0.49, 0.49), # mismatch, paired, shared
+        
+        (0.14, 0.55, 0.72), # mismatch, unpaired, unique
+        (0.14, 0.55, 0.72), # mismatch, mispaired, unique
+        (0.33, 0.70, 0.88), # mismatch, unpaired, shared
+        (0.33, 0.70, 0.88)] # mismatch, mispaired, shared
 
     figure = pylab.figure(figsize=(box_size[0]*columns, box_size[1]*subplot_rows), dpi=dpi)  # TODO: dpi doesn't seem to do shit. Is it stuck in 100?
 
     coverage_matrices = sorted(coverage_matrices, key=allele_sorter)  # so that the A alleles come first, then B, and so on.
     prev_locus = ''
-    i_subplot = 0
+    i_locus = -1
 
     for allele, coverage in coverage_matrices:
 
@@ -654,13 +656,14 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
             plot_title = allele_data.loc[allele]['type'] # + allele for debugging original ID
 
         if prev_locus != get_allele_locus(allele):  # new locus, start new row
-            i_subplot = i_subplot + columns - ((i_subplot-1) % columns)
+            i_locus += 1
+            i_allele_in_locus = 0
         else:
-            i_subplot += 1
+            i_allele_in_locus = 1
 
         prev_locus = get_allele_locus(allele)
 
-        plot = figure.add_subplot(subplot_rows, columns, i_subplot, adjustable='box')
+        plot = pylab.subplot2grid((subplot_rows, columns), (3*i_locus, i_allele_in_locus), rowspan=3, adjustable='box')
 
         _, _, max_ambig, seq_length = coverage.shape  # first two dimensions known (mismatched[2], pairing[3])
 
@@ -685,23 +688,27 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
         i_start = 1  # position of last feature's end. It's one because we padded with zeros above
         for _, ft in get_features(allele, features, features_used).iterrows():
             if ft['feature'] == 'exon':
-                plot.axvspan(i_start, i_start + ft['length'], facecolor='blue', alpha=0.1, linewidth=0, zorder=1)
+                plot.axvspan(i_start, i_start + ft['length'], facecolor='black', alpha=0.1, linewidth=0, zorder=1)
             i_start += ft['length']
 
 
         areas = plot.stackplot(np.arange(seq_length+2), # seq_length+2 because of the zero padding at either end
             perfect_paired_unique + 0.001,  # so that 0 isn't -inf on the logplot, but still below cutoff
-            mismatch_paired_unique,
-            perfect_unpaired_unique,
-            mismatch_unpaired_unique,
-            perfect_mispaired_unique,
-            mismatch_mispaired_unique,
             perfect_paired_shared,
-            mismatch_paired_shared,
+
+            perfect_unpaired_unique,
+            perfect_mispaired_unique,
             perfect_unpaired_shared,
-            mismatch_unpaired_shared,
             perfect_mispaired_shared,
+
+            mismatch_paired_unique,
+            mismatch_paired_shared,
+            
+            mismatch_unpaired_unique,
+            mismatch_mispaired_unique,
+            mismatch_unpaired_shared,
             mismatch_mispaired_shared,
+
             linewidth=0, colors=area_colors, zorder=5)
 
         for aa in areas:
@@ -716,6 +723,28 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
         plot.axis((0, seq_length, 1, y2))  # enforce y axis minimum at 10^0. This corresponds to zero coverage because of the +1 above
         plot.set_yscale('log')
         plot.set_ylim(bottom=0.5)
+
+    legend = pylab.subplot2grid((subplot_rows, columns), (subplot_rows-1, 0), colspan=2, adjustable='box')
+    ppp = pylab.matplotlib.patches
+    legend.add_patch(ppp.Rectangle((0, 2), 2, 2, color=area_colors[0]))
+    legend.add_patch(ppp.Rectangle((0, 0), 2, 2, color=area_colors[1]))
+    legend.add_patch(ppp.Rectangle((25, 2), 2, 2, color=area_colors[2]))
+    legend.add_patch(ppp.Rectangle((25, 0), 2, 2, color=area_colors[4]))
+    legend.add_patch(ppp.Rectangle((50, 2), 2, 2, color=area_colors[6]))
+    legend.add_patch(ppp.Rectangle((50, 0), 2, 2, color=area_colors[7]))
+    legend.add_patch(ppp.Rectangle((75, 2), 2, 2, color=area_colors[8]))
+    legend.add_patch(ppp.Rectangle((75, 0), 2, 2, color=area_colors[10]))
+    legend.text( 2.5, 3, 'paired, no mismatches, unique', va='center', size='smaller')
+    legend.text( 2.5, 1, 'paired, no mismatches, ambiguous', va='center', size='smaller')
+    legend.text(27.5, 3, 'unpaired, no mismatches, unique', va='center', size='smaller')
+    legend.text(27.5, 1, 'unpaired, no mismatches, ambiguous', va='center', size='smaller')
+    legend.text(52.5, 3, 'paired, mismatched, unique', va='center', size='smaller')
+    legend.text(52.5, 1, 'paired, mismatched, ambiguous', va='center', size='smaller')
+    legend.text(77.5, 3, 'unpaired, mismatched, unique', va='center', size='smaller')
+    legend.text(77.5, 1, 'unpaired, mismatched, ambiguous', va='center', size='smaller')
+    legend.set_xlim(0, 100)
+    legend.set_ylim(0, 4)
+    legend.axison = False
 
     figure.tight_layout()
     figure.savefig(outfile)
