@@ -209,32 +209,42 @@ if __name__ == '__main__':
         print "The specified number of enumerations must be bigger than %i"%args.enumeration
         sys.exit(-1)
 
+    if len(args.input) not in (1, 2):
+        print "Number of input files can only be 1 (single-end) or 2 (paired-end)"
+        sys.exit(-1)
+
+    input_extension = args.input[0].split('.')[-1]
+    assert all(ii.endswith('.' + input_extension) for ii in args.input), 'Mixed input file extensions'
+
+    bam_input = (input_extension in ('sam', 'bam', 'SAM', 'BAM'))  # otherwise treated as fastq
+
     # Constants
     VERBOSE = ht.VERBOSE = bool(args.verbose)  # set verbosity setting in hlatyper too
-    COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %d -o %s.sam %s %s"
+    COMMAND = "-i 97 -m 99999 --distance-range 0 -pa -tc %d -o %s %s %s"
     ALLELE_HDF = os.path.join(this_dir, 'data/alleles.h5')
     MAPPING_REF = {'gen': os.path.join(this_dir, 'data/hla_reference_dna.fasta'),
                    'nuc': os.path.join(this_dir, 'data/hla_reference_rna.fasta')}
-    MAPPING_CMD = config.get("mapping", "razers3")+" "+COMMAND
+    MAPPING_CMD = config.get("mapping", "razers3") + " " + COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
-    out_dir = args.outdir+date if args.outdir[-1] == "/" else args.outdir+"/"+date
-
+    out_dir = os.path.join(args.outdir, date)
     os.makedirs(out_dir)
+
+    bam_paths = args.input if bam_input else [os.path.join(out_dir, ("%s_%i.bam" % (date, i+1))) for i in range(len(args.input))]
 
     # SETUP variables and OUTPUT samples
     ref_type = "nuc" if args.rna else "gen"
     is_paired = len(args.input) > 1
     
-    out_csv = out_dir + "/%s_result.tsv" % date
-    out_plot = out_dir + "/%s_coverage_plot.pdf" % date
+    out_csv = os.path.join(out_dir, ("%s_result.tsv" % date))
+    out_plot = os.path.join(out_dir, ("%s_coverage_plot.pdf" % date))
 
     # mapping fished file to reference
-    for i, sample in enumerate(args.input):
-        if VERBOSE:
-            print "\n", ht.now(), "Mapping %s to %s reference..." % (os.path.basename(sample), ref_type.upper())
-        sample_out = out_dir + "/" + date + "_" + str(i)
-        subprocess.call(MAPPING_CMD % (config.getint("mapping", "threads"), sample_out,
-                                       MAPPING_REF[ref_type], sample), shell=True)
+    if not bam_input:
+        for (i, sample), outbam in zip(enumerate(args.input), bam_paths):
+            if VERBOSE:
+                print "\n", ht.now(), "Mapping %s to %s reference..." % (os.path.basename(sample), ref_type.upper())
+            subprocess.call(MAPPING_CMD % (config.getint("mapping", "threads"), outbam,
+                                           MAPPING_REF[ref_type], sample), shell=True)
 
     # sam-to-hdf5
     table, features = ht.load_hdf(ALLELE_HDF, False, 'table', 'features')
@@ -243,17 +253,15 @@ if __name__ == '__main__':
 
     if is_paired:
         # combine matrices for paired-end mapping
-        sample_1 = out_dir + "/" + date + "_0.sam"
-        sample_2 = out_dir + "/" + date + "_1.sam"
-        pos, read_details = ht.pysam_to_hdf(sample_1)
+        pos, read_details = ht.pysam_to_hdf(bam_paths[0])
         binary1 = np.sign(pos)  # dtype=np.uint16
         
-        pos2, read_details2 = ht.pysam_to_hdf(sample_2)
+        pos2, read_details2 = ht.pysam_to_hdf(bam_paths[1])
         binary2 = np.sign(pos2)  # dtype=np.uint16
 
-        if config.getboolean('behavior', 'deletebam'):
-          os.remove(sample_1)
-          os.remove(sample_2)
+        if not bam_input and config.getboolean('behavior', 'deletebam'):
+            os.remove(bam_paths[0])
+            os.remove(bam_paths[1])
         
         id1 = set(binary1.index)
         id2 = set(binary2.index)
@@ -293,9 +301,11 @@ if __name__ == '__main__':
             binary = binary_p
 
     else:
-        sample_1 = out_dir + "/" + date + "_0.sam"
-        pos, read_details = ht.pysam_to_hdf(sample_1)
-        os.remove(sample_1)
+        pos, read_details = ht.pysam_to_hdf(bam_paths[0])
+
+        if not bam_input and config.getboolean('behavior', 'deletebam'):
+            os.remove(bam_paths[0])
+
         binary = np.sign(pos)  # dtype=np.uint16
 
     # dimensionality reduction and typing
