@@ -350,7 +350,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
 
             all_features.append(
                 (allele.id, feature.type, feature_num,
-                int(feature.location.start), int(feature.location.end), len(feature))
+                int(feature.location.start), int(feature.location.end), len(feature), feature_order((feature.type, feature_num)))
                 )
 
         # small sanity check, can be commented out
@@ -381,7 +381,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
             sequences.append((allele_id, 'nuc', str(record.seq)))
 
     # convert list of tuples into DataFrame for features and sequences
-    all_features = pd.DataFrame(all_features, columns=['id', 'feature', 'number', 'start', 'end', 'length'])
+    all_features = pd.DataFrame(all_features, columns=['id', 'feature', 'number', 'start', 'end', 'length', 'order'])
     sequences = pd.DataFrame(sequences, columns=['id', 'source', 'sequence'])
 
 
@@ -416,7 +416,26 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
     if VERBOSE:
         print now(), 'Sanity check finished. Computing feature sequences...'
 
-    return table, all_features, sequences
+    ft_seq_lookup = OrderedDict()
+    ft_seq_lookup['---DUMMY---'] = 0  # it will be useful later on if 0 isn't used. lookup_id*boolean operation, etc.
+    ft_counter = 1
+    all_ft_counter = 0
+    all_features['seq_id'] = 0
+    for i_id, i_features in all_features.groupby('id'):
+        seq = sequences.loc[(sequences['id']==i_id) & (sequences['source']=='dat')].irow(0)['sequence']
+        for ft_idx, feature in i_features.iterrows():
+            ft_seq = seq[feature['start']:feature['end']]
+            all_ft_counter += 1
+            if ft_seq not in ft_seq_lookup:
+                ft_seq_lookup[ft_seq] = ft_counter
+                all_features.loc[ft_idx, 'seq_id'] = ft_counter
+                ft_counter += 1
+            else:
+                all_features.loc[ft_idx, 'seq_id'] = ft_seq_lookup[ft_seq]
+
+    feature_sequences = pd.DataFrame([seq for seq in ft_seq_lookup.keys()], columns=['sequence'])  # , index=ft_seq_lookup.values() but it's 0,1,2,... anyway, as the default
+
+    return table, all_features, sequences, feature_sequences
 
 
 def prune_identical_alleles(binary_mtx, report_groups=False):
