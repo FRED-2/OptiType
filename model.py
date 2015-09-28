@@ -242,11 +242,11 @@ class OptiType(object):
         for _ in xrange(ks):
             inst.preprocess()
             try:
-                res = self.__solver.solve(self.__instance, options=self.__opts, tee=self.__verbosity)
+                res = self.__solver.solve(inst, options=self.__opts, tee=self.__verbosity)
             except:
                 print ("WARNING: Solver does not support multi-threading. Please change the config"
                       " file accordingly. Falling back to single-threading.")
-                res = self.__solver.solve(self.__instance, options={}, tee=self.__verbosity)
+                res = self.__solver.solve(inst, options={}, tee=self.__verbosity)
             inst.solutions.load_from(res)
 
             if self.__verbosity > 0:
@@ -275,7 +275,7 @@ class OptiType(object):
                             exp_i += inst.x[i_allele]
                         indices.append(i_allele)
                     expr += (1 - exp_i)
-            zero_indices = set([j for j in self.__instance.x]).difference(set(indices))
+            zero_indices = set([j for j in inst.x]).difference(set(indices))
             for j in zero_indices:
                 expr += inst.x[j]
 
@@ -295,7 +295,7 @@ class OptiType(object):
 
             # print "Obj", res.Solution.Objective.__default_objective__.Value
             nof_reads = sum((inst.occ[j] * inst.y[j].value for j in inst.y))
-            d['obj'].append(self.__instance.read_cov())
+            d['obj'].append(inst.read_cov())
             d['nof_reads'].append(nof_reads)
 
         return pd.DataFrame(d)
@@ -340,11 +340,11 @@ class OptiType(object):
 
         inst.preprocess()
         try:
-            res = self.__solver.solve(self.__instance, options=self.__opts, tee=self.__verbosity)
+            res = self.__solver.solve(inst, options=self.__opts, tee=self.__verbosity)
         except:
             print ("WARNING: Solver does not support multi-threading. Please change the config"
                   " file accordingly. Falling back to single-threading.")
-            res = self.__solver.solve(self.__instance, options={}, tee=self.__verbosity)
+            res = self.__solver.solve(inst, options={}, tee=self.__verbosity)
         inst.solutions.load_from(res)
 
         opt_ids = [j for j in inst.x if 0.99 <= inst.x[j].value <= 1.01]
@@ -359,7 +359,7 @@ class OptiType(object):
                 d[aas[i] + str(c[aas[i]])].append(opt_ids[i])
                 c[aas[i]] += 1
         nof_reads = sum((inst.occ[j] * inst.y[j].value for j in inst.y))
-        d['obj'].append(self.__instance.read_cov())
+        d['obj'].append(self.inst.read_cov())
         d['nof_reads'].append(nof_reads)
 
         return pd.DataFrame(d)
@@ -487,6 +487,6 @@ class OptiType(object):
                 d[aas[q] + str(c[aas[q]])].append(selected[q])
                 c[aas[q]] += 1
         nof_reads = sum((inst.occ[h] * inst.y[h].value for h in inst.y))
-        d['obj'].append(self.__instance.read_cov())
+        d['obj'].append(inst.read_cov())
         d['nof_reads'].append(nof_reads)
         return pd.DataFrame(d)
