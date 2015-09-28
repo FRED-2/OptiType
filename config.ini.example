@@ -1,31 +1,44 @@
 [mapping]
-# RazerS3 absolute binary path
+
+# Absolute path to RazerS3 binary, and number of threads to use for mapping
+
 razers3=/path/to/razerS3
 threads=16
 
 [ilp]
-# Note: the solver has to be supported by Coopr
+
+# A Pyomo-supported ILP solver. The solver must be globally accessible in the
+# environment OptiType is run, so make sure to include it in PATH.
+# Note: this is NOT a path to the solver binary, but a keyword argument for
+# Pyomo. Examples: glpk, cplex, cbc.
+
 solver=glpk
 threads=1
 
 [behavior]
-#tempdir=/path/to/tempdir  # we'll enable this setting later
 
-# Deletes intermediate bam files produced by the read mapper after finishing.
+# tempdir=/path/to/tempdir  # we may enable this setting later. Not used now.
+
+# Delete intermediate bam files produced by RazerS3 after OptiType finished
+# loading them. If you plan to re-analyze your samples with different settings
+# disabling this option can be a time-saver, as you'll be able to pass the bam
+# files to OptiType directly as input and spare the expensive read mapping
+# step.
+
 deletebam=true
-
-# Stores the hit matrix (or matrices if paired-end) built from the all-mapped
-# bam file in HDF5 format in the results folder. Strongly suggested if the
-# sample might be subjected to re-analysis with different settings, as it spares
-# the expensive read mapping and bam loading steps.
-#store_hitmx=false  # we'll enable this setting later
 
 # In paired-end mode one might want to use reads with just one mapped end (e.g.,
 # the other end falls outside the reference region). This setting allows the
-# user to keep them with an optionally reduced weight.
-# [0: discarded, 1: as valuable as a paired read]
+# user to keep them with an optionally reduced weight. A value of 0 means they
+# are discarded for typing, a value of 1 means they are treated as valuable as
+# properly mapped read pairs. Note: unpaired reads will be reported on the
+# result coverage plots for completeness, regardless of this setting.
+
 unpaired_weight=0.2  # we'll enable this setting later
 
-# Reads with their two ends best-mapping to two disjoint sets of alleles can be
-# either omitted (default) or either of their ends treated as unpaired hits.
+# We call a read pair discordant if its two ends best-map to two disjoint sets
+# of alleles. Such reads can be either omitted or either of their ends treated
+# as unpaired hits. Note: discordant read pairs are reported on the coverage
+# plots as unpaired reads, regardless of this setting.
+
 use_discordant=false
