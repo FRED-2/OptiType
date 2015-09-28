@@ -36,6 +36,7 @@ class OptiType(object):
         self.__t_max_allele = t_max_allele
         self.__solver = SolverFactory(solver)
         self.__threads = threads
+        self.__opts = {"threads": threads} if threads > 1 else {}
         self.__verbosity = verbosity
         self.__changed = True  # model needs to know if it changed from last run or not
         self.__ks = 1
@@ -139,20 +140,13 @@ class OptiType(object):
             for k in xrange(ks):
                 expr = 0
 
-                self.__instance.x.reset()
-                self.__instance.y.reset()
                 self.__instance.preprocess()
-
                 try:
-                    if self.__threads > 1:
-                        res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
-                    else:
-                        res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+                    res = self.__solver.solve(self.__instance, options=self.__opts, tee=self.__verbosity)
                 except:
-                        print "WARNING: Solver does not support multi-threading. Please change the config " \
-                              "file accordingly! Fall back to single-threading."
-                        del self.__solver.options["threads"]
-                        res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
+                    print ("WARNING: Solver does not support multi-threading. Please change the config"
+                          " file accordingly. Falling back to single-threading.")
+                    res = self.__solver.solve(self.__instance, options={}, tee=self.__verbosity)
                 self.__instance.solutions.load_from(res)  # solution loading changed recently.
 
                 # if self.__verbosity > 0:
@@ -246,21 +240,14 @@ class OptiType(object):
         d = defaultdict(list)
 
         for _ in xrange(ks):
-            inst.x.reset()
-            inst.y.reset()
             inst.preprocess()
             try:
-                if self.__threads > 1:
-                    res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
-                else:
-                    res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+                res = self.__solver.solve(self.__instance, options=self.__opts, tee=self.__verbosity)
             except:
-                del self.__solver.options["threads"]
-                print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
-                      "Fall back to single-threading."
-                res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
-
-            inst.load(res)
+                print ("WARNING: Solver does not support multi-threading. Please change the config"
+                      " file accordingly. Falling back to single-threading.")
+                res = self.__solver.solve(self.__instance, options={}, tee=self.__verbosity)
+            inst.solutions.load_from(res)
 
             if self.__verbosity > 0:
                 res.write(num=1)
@@ -351,22 +338,14 @@ class OptiType(object):
 
         d = defaultdict(list)
 
-        inst.x.reset()
-        inst.y.reset()
         inst.preprocess()
-
-
         try:
-            if self.__threads > 1:
-                res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
-            else:
-                res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+            res = self.__solver.solve(self.__instance, options=self.__opts, tee=self.__verbosity)
         except:
-            del self.__solver.options["threads"]
-            print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
-                  "Fall back to single-threading."
-            res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
-        inst.load(res)
+            print ("WARNING: Solver does not support multi-threading. Please change the config"
+                  " file accordingly. Falling back to single-threading.")
+            res = self.__solver.solve(self.__instance, options={}, tee=self.__verbosity)
+        inst.solutions.load_from(res)
 
         opt_ids = [j for j in inst.x if 0.99 <= inst.x[j].value <= 1.01]
 
@@ -394,21 +373,14 @@ class OptiType(object):
         """
         d = defaultdict(list)
 
-        self.__instance.x.reset()
-        self.__instance.y.reset()
         self.__instance.preprocess()
-
         try:
-            if self.__threads > 1:
-                res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
-            else:
-                res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+            res = self.__solver.solve(self.__instance, options=self.__opts, tee=self.__verbosity)
         except:
-            del self.__solver.options["threads"]
-            print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
-                  "Fall back to single-threading."
-            res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
-        self.__instance.load(res)
+            print ("WARNING: Solver does not support multi-threading. Please change the config"
+                  " file accordingly. Falling back to single-threading.")
+            res = self.__solver.solve(self.__instance, options={}, tee=self.__verbosity)
+        self.__instance.solutions.load_from(res)
 
         opt_ids = [j for j in self.__instance.x if 0.99 <= self.__instance.x[j].value <= 1.01]
 
@@ -444,12 +416,10 @@ class OptiType(object):
             self.__instance.c.add(discard == 0.0)
 
             # solve with new constraints
-            self.__instance.x.reset()
-            self.__instance.y.reset()
             self.__instance.preprocess()
             try:
                 res = self.__solver.solve(self.__instance, tee=self.__verbosity)  # ,tee=True) verbose solvinf
-                self.__instance.load(res)
+                self.__instance.solutions.load_from(res)
             except:
                 print Warning("There is no replacement for allele " + self.__allele_to_4digit[j])
                 continue
@@ -497,21 +467,15 @@ class OptiType(object):
 
         d = defaultdict(list)
 
-        inst.x.reset()
-        inst.y.reset()
         inst.preprocess()
-
         try:
-            if self.__threads > 1:
-                res = self.__solver.solve(self.__instance, options="threads="+str(self.__threads), tee=self.__verbosity)
-            else:
-                res = self.__solver.solve(self.__instance, options="", tee=self.__verbosity)
+            res = self.__solver.solve(inst, options=self.__opts, tee=self.__verbosity)
         except:
-            del self.__solver.options["threads"]
-            print "WARNING: Solver does not support multi-threading. Please change the config file accordingly! " \
-                      "Fall back to single-threading."
-            res = self.__solver.solve(self.__instance, options="",  tee=self.__verbosity)
-        inst.load(res)
+            print ("WARNING: Solver does not support multi-threading. Please change the config"
+                  " file accordingly. Falling back to single-threading.")
+            res = self.__solver.solve(inst, options={}, tee=self.__verbosity)
+        inst.solutions.load_from(res)
+
         selected = [al for al in inst.x if 0.99 <= inst.x[al].value <= 1.01]
         aas = [self.__allele_to_4digit[x].split('*')[0] for x in selected]
         c = dict.fromkeys(aas, 1)
