@@ -4,7 +4,6 @@ import re
 import pylab
 import warnings
 from collections import OrderedDict
-from Bio import SeqIO
 from datetime import datetime
 import sys
 
@@ -272,6 +271,7 @@ def mtx_to_sparse_dict(hit_df):
 
 
 def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
+    from Bio import SeqIO
     if VERBOSE:
         print now(), 'Loading IMGT allele dat file...'
 
