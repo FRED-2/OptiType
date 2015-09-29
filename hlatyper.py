@@ -4,9 +4,16 @@ import re
 import pylab
 import warnings
 from collections import OrderedDict
-from Bio import SeqIO
 from datetime import datetime
+import sys
 
+try:
+    import pysam
+    PYSAM_AVAILABLE = True
+except ImportError:
+    PYSAM_AVAILABLE = False
+
+VERBOSE = False
 
 def now(start=datetime.now()):
     # function argument NOT to be ever set! It gets initialized at function definition time
@@ -52,7 +59,7 @@ def store_dataframes(out_hdf, **kwargs):
     complevel = kwargs.pop('complevel', 9)   # default complevel & complib values if
     complib = kwargs.pop('complib', 'zlib')  # not explicitly asked for as arguments
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Storing %d DataFrames in file %s with compression settings %d %s...' % (len(kwargs), out_hdf, complevel, complib)
 
     store = pd.HDFStore(out_hdf, complevel=complevel, complib=complib)  # TODO: WRITE ONLY? it probably appends now
@@ -60,7 +67,7 @@ def store_dataframes(out_hdf, **kwargs):
         store[table_name] = dataframe
     store.close()
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'DataFrames stored in file.'
 
 
@@ -78,8 +85,8 @@ def load_hdf(in_hdf, as_dict=False, *args):  # isn't really neccesary, but makes
         return store  # store doesn't get closed! Either the user closes it manually or gets closed on exit
 
 
-def sam_to_hdf(samfile, **kwargs):
-    if kwargs.get("verbosity", 0):
+def sam_to_hdf(samfile):
+    if VERBOSE:
         print now(), 'Loading alleles and read IDs from %s...' % samfile
 
     # run through the SAM file once to see how many reads and alleles we are dealing with
@@ -107,45 +114,29 @@ def sam_to_hdf(samfile, **kwargs):
                 first_hit_row = False
                 columns = line.split()
                 try:
-                    md_index = map(lambda x: x.startswith('MD:'), columns).index(True)
-                except ValueError:
-                    # TODO: we don't really handle the case if MD-tag is not present, code will fail later
-                    print '\tNo MD-tag found in SAM file!'
-                    md_index = None
-                try:
                     nm_index = map(lambda x: x.startswith('NM:'), columns).index(True)
                 except ValueError:
                     # TODO: we don't really handle the case if NM-tag is not present, code will fail later
                     print '\tNo NM-tag found in SAM file!'
                     nm_index = None
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), '%d alleles and %d reads found.' % (len(allele_ids), len(read_ids))
         print now(), 'Initializing mapping matrix...'
 
     # major performance increase if we initialize a numpy zero-matrix and pass that in the constructor
     # than if we just let pandas initialize its default NaN matrix
-    matrix_pos = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
-    matrix_etc = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=int), columns=allele_ids, index=read_ids)
+    matrix_pos = pd.DataFrame(np.zeros((len(read_ids), len(allele_ids)), dtype=np.uint16), columns=allele_ids, index=read_ids)
 
-    if kwargs.get("verbosity", 0):
+    # read_details contains NM and read length tuples, calculated from the first encountered CIGAR string.
+    read_details = OrderedDict()
+
+    if VERBOSE:
         print now(), '%dx%d mapping matrix initialized. Populating %d hits from SAM file...' % (len(read_ids), len(allele_ids), total_hits)
 
     milestones = [x * total_hits / 10 for x in range(1, 11)]  # for progress bar
 
     with open(samfile, 'r') as f:
-
-        # NM, CIGAR and MD fields are extremely redundant. We'll build an ordered set of their triplets
-        # and create a second matrix identical to the first one where fields reference positions in this
-        # ordered set of hit descriptors. Reason to use OrderedDict: each key triplet's value is their
-        # position index in the set. So if I do a lookup on a triplet, I can tell its index, and later on
-        # I can retreive the triplet from its index by nm_cigar_mismatch_set.keys()[index]
-        # A minor hack: to be able to initialize a fast numpy zero matrix and not a slow pandas NaN matrix
-        # I add a first dummy element to this set (index 0) that correspond to unset matrix fields
-        # and the actual triplets will start from 1.
-        nm_cigar_mismatch_set = OrderedDict()
-        nm_cigar_mismatch_set[(0, '', '')] = 0
-
         counter = 0
         percent = 0
         for line in f:
@@ -153,50 +144,117 @@ def sam_to_hdf(samfile, **kwargs):
                 continue
 
             fields = line.strip().split('\t')
-            read_id, allele_id, position, cigar, nm, mismatches = (fields[i] for i in (0, 2, 3, 5, nm_index, md_index))
+            read_id, allele_id, position, cigar, nm = (fields[i] for i in (0, 2, 3, 5, nm_index))
 
-            position = int(position)
-            nm = int(nm[5:])  # NM:i:2 --> 2
-            mismatches = mismatches[5:]  # MD:Z:1T32A67 --> 1T32A67
+            if read_id not in read_details:
+                read_details[read_id] = (int(nm[5:]), length_on_reference(cigar))
 
-            matrix_pos[allele_id][read_id] = position  # SAM indexes from 1, so null elements are not hits
-
-            if (nm, cigar, mismatches) not in nm_cigar_mismatch_set:
-                descriptor_index = len(nm_cigar_mismatch_set)
-                nm_cigar_mismatch_set[(nm, cigar, mismatches)] = descriptor_index
-            else:
-                descriptor_index = nm_cigar_mismatch_set[(nm, cigar, mismatches)]
-
-            matrix_etc[allele_id][read_id] = descriptor_index
+            matrix_pos[allele_id][read_id] = int(position)  # SAM indexes from 1, so null elements are not hits
 
             counter += 1
             if counter in milestones:
                 percent += 10
-                if kwargs.get("verbosity", 0):
+                if VERBOSE:
                     print '\t%d%% completed' % percent
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), '%d elements filled. Matrix sparsity: 1 in %.2f' % (counter, matrix_pos.shape[0]*matrix_pos.shape[1]/float(counter))
 
     # convert HLA:HLA00001 identifiers to HLA00001
     matrix_pos.rename(columns=lambda x: x.replace('HLA:', ''), inplace=True)
-    matrix_etc.rename(columns=lambda x: x.replace('HLA:', ''), inplace=True)
 
-    # make a DataFrame from descriptor triplet set
-    hit_descriptors = pd.DataFrame(nm_cigar_mismatch_set.keys(), columns=['NM', 'CIGAR', 'MD'])
+    details_df = pd.DataFrame.from_dict(read_details, orient='index')
+    details_df.columns = ['mismatches', 'read_length']
 
-    return matrix_pos, matrix_etc, hit_descriptors
+    return matrix_pos, details_df
 
 
-def get_compact_model(hit_df, to_bool=False):
-# turn a hit matrix dataframe (can be mapping position matrix if used with to_bool=True)
-# into a smaller matrix DF that removes duplicate rows and creates the "occurence" vector
-# with the number of rows the representative read represents
+def pysam_to_hdf(samfile):
+    if not PYSAM_AVAILABLE:
+        print "Warning: PySam not available on the system. Falling back to primitive SAM parsing."
+        return sam_to_hdf(samfile)
 
-    hit_df = hit_df.ix[hit_df.any(axis=1)]  # remove all-zero rows
-    if to_bool:
-        hit_df = hit_df.applymap(bool)
+    sam_or_bam = 'rb' if samfile.endswith('.bam') else 'r'
+    sam = pysam.AlignmentFile(samfile, sam_or_bam)
+    is_yara = (sam.header['PG'][0]['ID'] in ('Yara', 'yara'))
+    # If yara produced the sam/bam file, we need to know in what form to expect secondary alignments.
+    # If the -os flag was used in the call, they are proper secondary alignments. Otherwise, they are
+    # one line per read with a long XA custom tag containing alternative hits.
+    xa_tag = is_yara and (' -os ' not in sam.header['PG'][0]['CL'])
+
+    nref = sam.nreferences
+    hits = OrderedDict()
+
+    allele_id_to_index = {aa: ii for ii, aa in enumerate(sam.references)}
+
+    # read_details contains NM and read length tuples. We ignore length on reference from now on.
+    # Not worth the effort and calculation. Indels are rare and they have to be dealt with differently. The coverage
+    # plot wil still be fine and +-1 bp regarding read end isn't concerning.
+    read_details = OrderedDict()
+
+    if VERBOSE:
+        print now(), 'Loading %s started. Number of HLA reads loaded (updated every thousand):' % samfile
+
+    read_counter = 0
+    hit_counter = 0
+
+    for aln in sam:
+        # TODO: we could spare on accessing hits[aln.qname] if we were guaranteed alignments of one read come in batches
+        # and never mix. Most aligners behave like this but who knows...
+        if aln.qname not in hits:  # for primary alignments (first hit of read)
+            # not using defaultdict because we have other one-time things to do when new reads come in anyway
+            hits[aln.qname] = np.zeros(nref, dtype=np.uint16)  # 16 bits are enough for 65K positions, enough for HLA.
+            # TODO: as soon as we don't best-map but let in suboptimal alignments, this below is not good enough,
+            # as we need to store NM for every read-allele pair.
+            # and then there are cases (usually 1D/1I artefacts at the end) where aligned reference length isn't the same
+            # for all alignments of a read. How to handle that? Maybe needless if we re-map reads anyway.
+            read_details[aln.qname] = (aln.get_tag('NM'), aln.query_length)  # aln.reference_length it used to be. Soft-trimming is out of question now.
+            read_counter += 1
+            if VERBOSE and not (read_counter % 1000):
+                sys.stdout.write('%dK...' % (len(hits)/1000))
+                sys.stdout.flush()
+            if xa_tag and aln.has_tag('XA'):
+                current_row = hits[aln.qname]  # we may access this hundreds of times, better do it directly
+                subtags = aln.get_tag('XA').split(';')[:-1]
+                hit_counter += len(subtags)
+                for subtag in subtags:
+                    allele, pos = subtag.split(',')[:2]  # subtag is like HLA02552,691,792,-,1 (id, start, end, orient, nm)
+                    current_row[allele_id_to_index[allele]] = int(pos)  # 1-based positions
+
+        # this runs for primary and secondary alignments as well:
+        hits[aln.qname][aln.reference_id] = aln.reference_start + 1  # pysam reports 0-based positions
+        hit_counter += 1
+        # num_mismatches = aln.get_tag('NM')  # if we ever need suboptimal alignments... doubtful.
+
+    if VERBOSE:
+        print '\n', now(), len(hits), 'reads loaded. Creating dataframe...'
+    pos_df = pd.DataFrame.from_items(hits.iteritems()).T
+    pos_df.columns = sam.references[:]
+    details_df = pd.DataFrame.from_dict(read_details, orient='index')
+    details_df.columns = ['mismatches', 'read_length']
+    if VERBOSE:
+        print now(), 'Dataframes created. Shape: %d x %d, hits: %d (%d), sparsity: 1 in %.2f' % (
+            pos_df.shape[0], pos_df.shape[1], np.sign(pos_df).sum().sum(), hit_counter, pos_df.shape[0]*pos_df.shape[1]/float(hit_counter)
+            )  # TODO: maybe return the binary here right away if we're using it to calculate density anyway.
+    return pos_df, details_df
+
+
+def get_compact_model(hit_df, weak_hit_df=None, weight=None):
+# turn a binary hit matrix dataframe into a smaller matrix DF that removes duplicate rows and
+# creates the "occurence" vector with the number of rows the representative read represents.
+# Note: one can pass "weak" hits (e.g., unpaired reads) and use them with a lower weight.
+
+    hit_df = hit_df.loc[hit_df.any(axis=1)]  # remove all-zero rows
     occurence = {r[0]: len(r) for r in hit_df.groupby(hit_df.columns.tolist()).groups.itervalues()}
-    unique_mtx = hit_df.drop_duplicates()
+
+    if weak_hit_df is not None:
+        weak_hit_df = weak_hit_df.loc[weak_hit_df.any(axis=1)]
+        assert 0 < weight <= 1, 'weak hit weight must be in (0, 1]'
+        weak_occ = {r[0]: len(r)*weight for r in weak_hit_df.groupby(weak_hit_df.columns.tolist()).groups.itervalues()}
+        occurence.update(weak_occ)
+        unique_mtx = pd.concat([hit_df.drop_duplicates(), weak_hit_df.drop_duplicates()])
+    else:
+        unique_mtx = hit_df.drop_duplicates()
+    
     return unique_mtx, occurence
 
 
@@ -212,17 +270,20 @@ def mtx_to_sparse_dict(hit_df):
     #return {(read, allele): 1 for read in hit_df.index for allele in hit_df.columns if hit_df[allele][read]>0}  # awfully inefficient
 
 
-def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
-    if kwargs.get("verbosity", 0):
+def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
+    from Bio import SeqIO
+    if VERBOSE:
         print now(), 'Loading IMGT allele dat file...'
 
     alleles = OrderedDict()
 
     with open(imgt_dat, 'rU') as handle:
         for i, record in enumerate(SeqIO.parse(handle, "imgt")):
+            # TODO: IMGT has changed the ID system. Now it's HLA00001.1 or HLA12345.2 showing versions. I'll get rid of this now though
+            record.id = record.id.split('.')[0]
             alleles[record.id] = record
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Initializing allele DataFrame...'
 
     '''
@@ -248,7 +309,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
     table = pd.DataFrame(index=alleles.keys(), columns=allele_info.split())
     sequences = []
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Filling DataFrame with allele data...'
 
     all_features = []  # contains tuples: (HLA id, feature type, feature number, feature start, feature end)
@@ -257,16 +318,16 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
 
         allele_type = allele.description.replace('HLA-', '').split(',')[0]
 
-        table.ix[allele.id]['id'] = allele.id
-        table.ix[allele.id]['type'] = allele_type
-        table.ix[allele.id]['4digit'] = ':'.join(allele_type.split(':')[:2])
-        table.ix[allele.id]['locus'] = allele_type.split('*')[0]
-        table.ix[allele.id]['flags'] = 0 if allele_type[-1].isdigit() else 1
-        table.ix[allele.id]['len_dat'] = len(str(allele.seq))
-        table.ix[allele.id]['len_gen'] = 0   # TODO: IT STILL DOESNT SOLVE PERFORMANCEWARNING!
-        table.ix[allele.id]['len_nuc'] = 0   # we initialize these nulls so that we don't get a
-        table.ix[allele.id]['full_gen'] = 0  # PerformanceWarning + pickling when storing HDF
-        table.ix[allele.id]['full_nuc'] = 0  # because of NaNs (they don't map to ctypes)
+        table.loc[allele.id]['id'] = allele.id
+        table.loc[allele.id]['type'] = allele_type
+        table.loc[allele.id]['4digit'] = ':'.join(allele_type.split(':')[:2])
+        table.loc[allele.id]['locus'] = allele_type.split('*')[0]
+        table.loc[allele.id]['flags'] = 0 if allele_type[-1].isdigit() else 1
+        table.loc[allele.id]['len_dat'] = len(str(allele.seq))
+        table.loc[allele.id]['len_gen'] = 0   # TODO: IT STILL DOESNT SOLVE PERFORMANCEWARNING!
+        table.loc[allele.id]['len_nuc'] = 0   # we initialize these nulls so that we don't get a
+        table.loc[allele.id]['full_gen'] = 0  # PerformanceWarning + pickling when storing HDF
+        table.loc[allele.id]['full_nuc'] = 0  # because of NaNs (they don't map to ctypes)
         sequences.append((allele.id, 'dat', str(allele.seq)))
 
 
@@ -289,36 +350,38 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
 
             all_features.append(
                 (allele.id, feature.type, feature_num,
-                int(feature.location.start), int(feature.location.end), len(feature))
+                int(feature.location.start), int(feature.location.end), len(feature), feature_order((feature.type, feature_num)))
                 )
 
         # small sanity check, can be commented out
         cds = [f for f in allele.features if f.type == 'CDS']
         if cds:
             if sum(map(len, [f for f in features if f.type == 'exon'])) != len(cds[0]):
-                print "\tCDS length doesn't match sum of exons for", allele.id, allele_type
-                table.ix[allele.id]['flags'] += 2
+                if VERBOSE:
+                    print "\tCDS length doesn't match sum of exons for", allele.id, allele_type
+                table.loc[allele.id]['flags'] += 2
         else:
-            print "\tNo CDS found for", allele.id, allele_type
-            table.ix[allele.id]['flags'] += 2
+            if VERBOSE:
+                print "\tNo CDS found for", allele.id, allele_type
+            table.loc[allele.id]['flags'] += 2
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Loading gen and nuc files...'
 
     with open(fasta_gen, 'r') as fasta_gen:
         for record in SeqIO.parse(fasta_gen, 'fasta'):
             allele_id = record.id.replace('HLA:', '')
-            table.ix[allele_id]['len_gen'] = len(record.seq)
+            table.loc[allele_id]['len_gen'] = len(record.seq)
             sequences.append((allele_id, 'gen', str(record.seq)))
 
     with open(fasta_nuc, 'r') as fasta_nuc:
         for record in SeqIO.parse(fasta_nuc, 'fasta'):
             allele_id = record.id.replace('HLA:', '')
-            table.ix[allele_id]['len_nuc'] = len(record.seq)
+            table.loc[allele_id]['len_nuc'] = len(record.seq)
             sequences.append((allele_id, 'nuc', str(record.seq)))
 
     # convert list of tuples into DataFrame for features and sequences
-    all_features = pd.DataFrame(all_features, columns=['id', 'feature', 'number', 'start', 'end', 'length'])
+    all_features = pd.DataFrame(all_features, columns=['id', 'feature', 'number', 'start', 'end', 'length', 'order'])
     sequences = pd.DataFrame(sequences, columns=['id', 'source', 'sequence'])
 
 
@@ -330,34 +393,55 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc, **kwargs):
         exons_for_locus[i_locus] = i_group[i_group['feature']=='exon']['number'].max()
 
     # for i_id, i_group in joined.groupby('id'):
-    #     max_exons = exons_for_locus[table.ix[i_id]['locus']]
+    #     max_exons = exons_for_locus[table.loc[i_id]['locus']]
     #     if len(i_group) >= 2*max_exons-1:
     #         print i_id, 'is fully annotated on all exons and introns and UTRs'
 
-    if kwargs.get("verbosity", 0):
+    if VERBOSE:
         print now(), 'Checking dat features vs gen/nuc sequences...'
 
     for allele, features in joined.groupby('id'):
         row = features.irow(0)  # first row of the features subtable. Contains all allele information because of the join
         sum_features_length = features['length'].sum()
-        sum_exons_length = features.ix[features['feature']=='exon']['length'].sum()
+        sum_exons_length = features.loc[features['feature']=='exon']['length'].sum()
         if row['len_gen']>0 and row['len_gen'] != sum_features_length:
-            print "\tFeature lengths don't add up to gen sequence length", allele, row['len_gen'], sum_features_length, row['type']
-            table.ix[allele]['flags'] += 4
+            if VERBOSE:
+                print "\tFeature lengths don't add up to gen sequence length", allele, row['len_gen'], sum_features_length, row['type']
+            table.loc[allele]['flags'] += 4
         if row['len_nuc']>0 and row['len_nuc'] != sum_exons_length:
-            print "\tExon lengths don't add up to nuc sequence length", allele, row['len_nuc'], sum_exons_length, row['type']
-            table.ix[allele]['flags'] += 8
+            if VERBOSE:
+                print "\tExon lengths don't add up to nuc sequence length", allele, row['len_nuc'], sum_exons_length, row['type']
+            table.loc[allele]['flags'] += 8
 
-    if kwargs.get("verbosity", 0):
-        print now(), 'Sanity check finished...'
+    if VERBOSE:
+        print now(), 'Sanity check finished. Computing feature sequences...'
 
-    return table, all_features, sequences
+    ft_seq_lookup = OrderedDict()
+    ft_seq_lookup['---DUMMY---'] = 0  # it will be useful later on if 0 isn't used. lookup_id*boolean operation, etc.
+    ft_counter = 1
+    all_ft_counter = 0
+    all_features['seq_id'] = 0
+    for i_id, i_features in all_features.groupby('id'):
+        seq = sequences.loc[(sequences['id']==i_id) & (sequences['source']=='dat')].irow(0)['sequence']
+        for ft_idx, feature in i_features.iterrows():
+            ft_seq = seq[feature['start']:feature['end']]
+            all_ft_counter += 1
+            if ft_seq not in ft_seq_lookup:
+                ft_seq_lookup[ft_seq] = ft_counter
+                all_features.loc[ft_idx, 'seq_id'] = ft_counter
+                ft_counter += 1
+            else:
+                all_features.loc[ft_idx, 'seq_id'] = ft_seq_lookup[ft_seq]
+
+    feature_sequences = pd.DataFrame([seq for seq in ft_seq_lookup.keys()], columns=['sequence'])  # , index=ft_seq_lookup.values() but it's 0,1,2,... anyway, as the default
+
+    return table, all_features, sequences, feature_sequences
 
 
 def prune_identical_alleles(binary_mtx, report_groups=False):
     # return binary_mtx.transpose().drop_duplicates().transpose()
     # # faster:
-    hash_columns = binary_mtx.transpose().dot(np.random.rand(binary_mtx.shape[0]))
+    hash_columns = binary_mtx.transpose().dot(np.random.rand(binary_mtx.shape[0]))  # dtype np.uint16 okay here because result will be float64
     if report_groups:
         grouper = hash_columns.groupby(hash_columns)
         groups = {g[1].index[0]: g[1].index.tolist() for g in grouper}
@@ -369,23 +453,34 @@ def prune_identical_alleles(binary_mtx, report_groups=False):
 def prune_identical_reads(binary_mtx):
     # almost the same as ht.get_compact_model() except it doesn't return an occurence vector.
     # It should only be used to compactify a matrix before passing it to the function finding
-    # overshadowed alleles as it uses a super expensive square product operation.
-    # Final compactifying should be later done on the original binary matrix.
+    # overshadowed alleles. Final compactifying should be later done on the original binary matrix.
     #
     # return binary_mtx.drop_duplicates()
     # # faster:
-    reads_to_keep = binary_mtx.dot(np.random.rand(binary_mtx.shape[1])).drop_duplicates().index
-    return binary_mtx.ix[reads_to_keep]
+    reads_to_keep = binary_mtx.dot(np.random.rand(binary_mtx.shape[1])).drop_duplicates().index  # dtype np.uint16 okay because result will be float64
+    return binary_mtx.loc[reads_to_keep]
 
 
 def prune_overshadowed_alleles(binary_mtx):
-    # USES COVARIANCE which can be slow for huge matrices.
+    # Calculates B_T*B of the (pruned) binary matrix to determine if certain alleles "overshadow" others, i.e.
+    # have the same hits as other alleles plus more. In this case, these "other alleles" can be thrown out early, as
+    # they would be never chosen over the one overshadowing them.
+    #
     # For a 1000reads x 3600alleles matrix it takes 15 seconds.
     # So you should always prune identical columns and rows before to give it a matrix as small as possible.
     # So ideal usage:
     # prune_overshadowed_alleles(prune_identical_alleles(prune_identical_reads(binary_mtx)))
 
-    bb = binary_mtx.applymap(int)  # make sure dot products are not boolean but numbers
+    # np.dot() is prone to overflow and doesn't expand to int64 like np.sum(). Our binary matrices are np.uint16.
+    # If we have less than 65K rows in the binary mtx, we're good with uint16. We're also good if there's no
+    # column with 65K+ hits. We check for both with lazy 'or' to avoid calculating the sum if not needed anyway.
+    # If we would overflow, we change to uint32.
+    if (binary_mtx.shape[0] < np.iinfo(np.uint16).max) or (binary_mtx.sum(axis=0).max() < np.iinfo(np.uint16).max):
+        # In case we would reduce the binary mtx to np.uint8 we should to ensure it's at least uint16.
+        bb = binary_mtx if all(binary_mtx.dtypes == np.uint16) else binary_mtx.astype(np.uint16)
+    else:
+        bb = binary_mtx.astype(np.uint32)
+
     covariance = bb.transpose().dot(bb)
     diagonal = pd.Series([covariance[ii][ii] for ii in covariance.columns], index=covariance.columns)
     new_covariance = covariance[covariance.columns]
@@ -396,7 +491,7 @@ def prune_overshadowed_alleles(binary_mtx):
         potential_superiors = new_covariance[ii][new_covariance[ii]==diagonal[ii]].index
         if any(diagonal[potential_superiors] > diagonal[ii]):
             overshadowed.append(ii)
-    non_overshadowed = covariance.columns.diff(overshadowed)
+    non_overshadowed = covariance.columns.difference(overshadowed)
     return non_overshadowed
 
 def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
@@ -411,10 +506,22 @@ def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
         binary_2.index = map(id_cleaning, binary_2.index)
 
     common_read_ids = binary_1.index.intersection(binary_2.index)
+    only_1 = binary_1.index.difference(binary_2.index)
+    only_2 = binary_2.index.difference(binary_1.index)
 
-    b_1 = binary_1.ix[common_read_ids]
-    b_2 = binary_2.ix[common_read_ids]
-    return b_1 * b_2  # elementwise AND
+    b_1 = binary_1.loc[common_read_ids]
+    b_2 = binary_2.loc[common_read_ids]
+    b_12 = b_1 * b_2  # elementwise AND
+    b_ispaired = b_12.any(axis=1)  # reads with at least one allele w/ paired hits
+    b_paired = b_12.loc[b_ispaired]
+    b_mispaired = b_1.loc[~b_ispaired] + b_2.loc[~b_ispaired]  # elementwise AND where two ends only hit different alleles
+    b_unpaired = pd.concat([binary_1.loc[only_1], binary_2.loc[only_2]])  # concatenation for reads w/ just one end mapping anywhere
+
+    if VERBOSE:
+        print now(), ('Alignment pairing completed. %d paired, %d unpaired, %d discordant ' %
+            (b_paired.shape[0], b_unpaired.shape[0], b_mispaired.shape[0]))
+
+    return b_paired, b_mispaired, b_unpaired
 
 
 def get_features(allele_id, features, feature_list):
@@ -425,8 +532,8 @@ def get_features(allele_id, features, feature_list):
     else:
         complete_allele = allele_id
 
-    feats_complete = {(of['feature'], of['number']): of for _, of in features.ix[features['id']==complete_allele].iterrows()}
-    feats_partial = {(of['feature'], of['number']): of for _, of in features.ix[features['id']==partial_allele].iterrows()} if '_' in allele_id else feats_complete
+    feats_complete = {(of['feature'], of['number']): of for _, of in features.loc[features['id']==complete_allele].iterrows()}
+    feats_partial = {(of['feature'], of['number']): of for _, of in features.loc[features['id']==partial_allele].iterrows()} if '_' in allele_id else feats_complete
 
     feats_to_include = []
 
@@ -442,43 +549,42 @@ def get_features(allele_id, features, feature_list):
 
 
 def calculate_coverage(alignment, features, alleles_to_plot, features_used):
-    assert len(alignment) in (3, 6, 7), ("Alignment tuple either has to have 3, 6 or 7 elements. First six: pos, etc, desc "
+    assert len(alignment) in (2, 4, 5), ("Alignment tuple either has to have 2, 4 or 5 elements. First four: pos, read_details "
         "once or twice depending on single or paired end, and an optional binary DF at the end for PROPER paired-end plotting")
+    has_pairing_info = (len(alignment) == 5)
 
-    if len(alignment) == 3:
-        matrix_pos, matrix_etc, hit_descriptors = alignment[:3]
+    if len(alignment) == 2:
+        matrix_pos, read_details = alignment[:2]
         pos = matrix_pos[alleles_to_plot]
-        etc = matrix_etc[alleles_to_plot]
-        hit = hit_descriptors  # TODO: just want a shorter name
-        hit_counts = pos.applymap(bool).sum(axis=1)  # how many of the selected alleles does a particular read hit? (unambiguous hit or not)
+        pairing = np.sign(pos) * 2  # see explanation on the else branch. These mean unpaired hits.
+        hit_counts = np.sign(pos).sum(axis=1)  # how many of the selected alleles does a particular read hit? (unambiguous hit or not)
         # if only a single allele is fed to this function that has no hits at all, we still want to create a null-matrix
         # for it. Its initialization depends on max_ambiguity (it's the size of one of its dimensions) so we set this to 1 at least.
         max_ambiguity = max(1, hit_counts.max())
-        to_process = [(pos, etc, hit, hit_counts)]
-    elif len(alignment) == 6:
-        matrix_pos1, matrix_etc1, hit_descriptors1, matrix_pos2, matrix_etc2, hit_descriptors2 = alignment
+        to_process = [(pos, read_details, hit_counts, pairing)]
+    elif len(alignment) == 4:  # TODO: deprecated. We don't use this, it should probably be taken out.
+        matrix_pos1, read_details1, matrix_pos2, read_details2 = alignment
         pos1 = matrix_pos1[alleles_to_plot]
-        etc1 = matrix_etc1[alleles_to_plot]
-        hit1 = hit_descriptors1
         pos2 = matrix_pos2[alleles_to_plot]
-        etc2 = matrix_etc2[alleles_to_plot]
-        hit2 = hit_descriptors2
-        hit_counts1 = pos1.applymap(bool).sum(axis=1)
-        hit_counts2 = pos2.applymap(bool).sum(axis=1)
+        pairing1 = np.sign(pos1) * 2  # every read is considered unpaired
+        pairing2 = np.sign(pos2) * 2
+        hit_counts1 = np.sign(pos1).sum(axis=1)
+        hit_counts2 = np.sign(pos2).sum(axis=1)
         max_ambiguity = max(1, hit_counts1.max(), hit_counts2.max())
-        to_process = [(pos1, etc1, hit1, hit_counts1), (pos2, etc2, hit2, hit_counts2)]
+        to_process = [(pos1, read_details1, hit_counts1, pairing1), (pos2, read_details2, hit_counts2, pairing2)]
     else:
-        matrix_pos1, matrix_etc1, hit_descriptors1, matrix_pos2, matrix_etc2, hit_descriptors2, binary = alignment
-        binx = binary[alleles_to_plot]
-        pos1 = matrix_pos1[alleles_to_plot].ix[binx.index] * binx
-        pos2 = matrix_pos2[alleles_to_plot].ix[binx.index] * binx
-        etc1 = matrix_etc1[alleles_to_plot].ix[binx.index] * binx
-        etc2 = matrix_etc2[alleles_to_plot].ix[binx.index] * binx
-        hit1 = hit_descriptors1
-        hit2 = hit_descriptors2
-        hit_counts = binx.sum(axis=1)
-        max_ambiguity = max(1, hit_counts.max())
-        to_process = [(pos1, etc1, hit1, hit_counts), (pos2, etc2, hit2, hit_counts)]
+        matrix_pos1, read_details1, matrix_pos2, read_details2, pairing_binaries = alignment
+        bin_p, bin_u, bin_m = pairing_binaries
+        pos1 = matrix_pos1[alleles_to_plot]
+        pos2 = matrix_pos2[alleles_to_plot]
+        # pairing's values - 0: no hit, 1: paired hit, 2: unpaired hit, 3: discordantly paired hit
+        pairing = pd.concat([bin_p[alleles_to_plot], bin_u[alleles_to_plot]*2, bin_m[alleles_to_plot]*3])
+        pairing1 = pairing.loc[pos1.index]  # pairing information for first ends' hit matrix
+        pairing2 = pairing.loc[pos2.index]  # pairing information for second ends' hit matrix
+        hit_counts1 = np.sign(pairing1).sum(axis=1)
+        hit_counts2 = np.sign(pairing2).sum(axis=1)
+        max_ambiguity = max(1, hit_counts1.max(), hit_counts2.max())
+        to_process = [(pos1, read_details1, hit_counts1, pairing1), (pos2, read_details2, hit_counts2, pairing2)]
 
     coverage_matrices = []
 
@@ -486,25 +592,29 @@ def calculate_coverage(alignment, features, alleles_to_plot, features_used):
         allele_features = get_features(allele, features, features_used)
         allele_length = allele_features['length'].sum()
 
-        # typically 1-3 rows x sequence_length columns, plus a dimension for perfect hits vs hits with mismatches.
-        # Unique hits go in first row, reads hitting 2 alleles in second, etc.
-        # Nth row stands for reads hitting N alleles (ie. read might have come from one of N alleles)
-        coverage = np.zeros((2, max_ambiguity, allele_length), dtype=int)
+        # Dimensions:
+        #   1st - 0: perfect hit, 1: hit w/ mismatch(es)
+        #   2nd - 0: paired, 1: unpaired, 2: discordantly paired  # maybe introduce unpaired despite being paired on other alleles
+        #   3rd - 0: unique hit, 1: ambiguous hit between two alleles, ... n: ambiguous bw/ n+1 alleles
+        #   4th - 0 ... [sequence length]
+        coverage = np.zeros((2, 3, max_ambiguity, allele_length), dtype=int)
 
         # to_process is a list containing tuples with mapping/position/hit property dataframes to superimpose.
         # For single-end plotting to_process has just one element. For paired end, to_process has two elements that
         # were pre-processed to only plot reads where both pairs map, etc. but the point is that superimposing the two
         # will provide the correct result.
 
-        for pos, etc, hit, hit_counts in to_process:
+        for pos, read_details, hit_counts, pairing_info in to_process:
             reads = pos[pos[allele]!=0].index  # reads hitting allele: coverage plot will be built using these
-            for i_pos, i_cigar, i_mismatches, i_hitcount in zip(
-                    pos.ix[reads][allele],
-                    etc.ix[reads][allele].map(hit['CIGAR']),
-                    etc.ix[reads][allele].map(hit['NM']),
-                    hit_counts[reads]):
-                read_length = length_on_reference(i_cigar)  # this does not neccessarily equal actual read length because of indel mismatches
-                coverage[bool(i_mismatches)][i_hitcount-1][i_pos-1:i_pos-1+read_length] += 1
+            for i_pos, i_read_length, i_mismatches, i_hitcount, i_pairing in zip(
+                    pos.loc[reads][allele],
+                    read_details.loc[reads]['read_length'],
+                    read_details.loc[reads]['mismatches'],
+                    hit_counts[reads],
+                    pairing_info.loc[reads][allele]):
+                if not i_pairing:
+                    continue  # or i_pairing = 4. Happens if one end maps to the allele but a different allele has a full paired hit.
+                coverage[bool(i_mismatches)][i_pairing-1][i_hitcount-1][i_pos-1:i_pos-1+i_read_length] += 1
 
         coverage_matrices.append((allele, coverage))
     return coverage_matrices
@@ -519,66 +629,106 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
 
     def allele_sorter(allele_cov_mtx_tuple):
         allele, _ = allele_cov_mtx_tuple
-        return allele_data.ix[allele.split('_')[0]]['type']
+        return allele_data.loc[allele.split('_')[0]]['type']
 
     def get_allele_locus(allele):
-        return allele_data.ix[allele.split('_')[0]]['locus']
+        return allele_data.loc[allele.split('_')[0]]['locus']
 
     number_of_loci = len(set((get_allele_locus(allele) for allele, _ in coverage_matrices)))
 
     dpi = 50
-    box_size = (7, 3)
+    box_size = (7, 1)
 
     # subplot_rows = len(coverage_matrices)/columns + bool(len(coverage_matrices) % columns)  # instead of float division + rounding up
     # subplot_rows = 3 # TODO
-    subplot_rows = number_of_loci
+    subplot_rows = 3 * number_of_loci + 1  # rowspan=3 for each plot, legend at the bottom with third height and colspan=2
 
-    area_colors = [(.4, .7, .4), (.6, .9, .6), (.9, .3, .3), (.9, .6, .6)]  # colors: unique perfect hits, shared perfect hits, unique mismatch hits, shared mismatch hits
+    area_colors = [  # stacked plot colors
+        (0.26, 0.76, 0.26), # perfect, paired, unique
+        (0.40, 0.84, 0.40), # perfect, paired, shared
+
+        (0.99, 0.75, 0.20), # perfect, unpaired, unique
+        (0.99, 0.75, 0.20), # perfect, mispaired, unique
+        (0.99, 0.85, 0.35), # perfect, unpaired, shared
+        (0.99, 0.85, 0.35), # perfect, mispaired, shared
+
+        (0.99, 0.23, 0.23), # mismatch, paired, unique
+        (0.99, 0.49, 0.49), # mismatch, paired, shared
+        
+        (0.14, 0.55, 0.72), # mismatch, unpaired, unique
+        (0.14, 0.55, 0.72), # mismatch, mispaired, unique
+        (0.33, 0.70, 0.88), # mismatch, unpaired, shared
+        (0.33, 0.70, 0.88)] # mismatch, mispaired, shared
+
     figure = pylab.figure(figsize=(box_size[0]*columns, box_size[1]*subplot_rows), dpi=dpi)  # TODO: dpi doesn't seem to do shit. Is it stuck in 100?
 
     coverage_matrices = sorted(coverage_matrices, key=allele_sorter)  # so that the A alleles come first, then B, and so on.
     prev_locus = ''
-    i_subplot = 0
+    i_locus = -1
 
     for allele, coverage in coverage_matrices:
 
         if '_' in allele:
             partial, complete = allele.split('_')
-            plot_title = '%s (introns from %s)' % (allele_data.ix[partial]['type'], allele_data.ix[complete]['type']) # , allele for debugging (original ID)
+            plot_title = '%s (introns from %s)' % (allele_data.loc[partial]['type'], allele_data.loc[complete]['type']) # , allele for debugging (original ID)
         else:
-            plot_title = allele_data.ix[allele]['type'] # + allele for debugging original ID
+            plot_title = allele_data.loc[allele]['type'] # + allele for debugging original ID
 
         if prev_locus != get_allele_locus(allele):  # new locus, start new row
-            i_subplot = i_subplot + columns - ((i_subplot-1) % columns)
+            i_locus += 1
+            i_allele_in_locus = 0
         else:
-            i_subplot += 1
-
-        #print i_subplot
+            i_allele_in_locus = 1
 
         prev_locus = get_allele_locus(allele)
 
-        plot = figure.add_subplot(subplot_rows, columns, i_subplot, adjustable='box')
+        plot = pylab.subplot2grid((subplot_rows, columns), (3*i_locus, i_allele_in_locus), rowspan=3, adjustable='box')
 
-        _, max_ambig, seq_length = coverage.shape  # first dimension size is 2 (perfect vs mismatch)
+        _, _, max_ambig, seq_length = coverage.shape  # first two dimensions known (mismatched[2], pairing[3])
 
         shared_weighting = np.reciprocal(np.arange(max_ambig)+1.0)  # --> 1, 1/2, 1/3...
         shared_weighting[0] = 0  # --> 0, 1/2, 1/3, so the unique part doesn't get mixed in
 
-        unique_perfect  = start_end_zeros(coverage[0][0])
-        unique_mismatch = start_end_zeros(coverage[1][0])
-        shared_perfect  = start_end_zeros(shared_weighting.dot(coverage[0]))
-        shared_mismatch = start_end_zeros(shared_weighting.dot(coverage[1]))
+        perfect_paired_unique = start_end_zeros(coverage[0][0][0])
+        mismatch_paired_unique = start_end_zeros(coverage[1][0][0])
+        perfect_unpaired_unique = start_end_zeros(coverage[0][1][0])
+        mismatch_unpaired_unique = start_end_zeros(coverage[1][1][0])
+        perfect_mispaired_unique = start_end_zeros(coverage[0][2][0])
+        mismatch_mispaired_unique = start_end_zeros(coverage[1][2][0])
+
+        perfect_paired_shared = start_end_zeros(shared_weighting.dot(coverage[0][0]))
+        mismatch_paired_shared = start_end_zeros(shared_weighting.dot(coverage[1][0]))
+        perfect_unpaired_shared = start_end_zeros(shared_weighting.dot(coverage[0][1]))
+        mismatch_unpaired_shared = start_end_zeros(shared_weighting.dot(coverage[1][1]))
+        perfect_mispaired_shared = start_end_zeros(shared_weighting.dot(coverage[0][2]))
+        mismatch_mispaired_shared = start_end_zeros(shared_weighting.dot(coverage[1][2]))
 
         # Exon annotation
         i_start = 1  # position of last feature's end. It's one because we padded with zeros above
         for _, ft in get_features(allele, features, features_used).iterrows():
             if ft['feature'] == 'exon':
-                plot.axvspan(i_start, i_start + ft['length'], facecolor='blue', alpha=0.1, linewidth=0, zorder=1)
+                plot.axvspan(i_start, i_start + ft['length'], facecolor='black', alpha=0.1, linewidth=0, zorder=1)
             i_start += ft['length']
 
 
-        areas = plot.stackplot(np.arange(seq_length+2), unique_perfect+0.001, shared_perfect, unique_mismatch,  # seq_length+2 because of the zero padding at either end
-            shared_mismatch, linewidth=0, colors=area_colors, zorder=5)  # +0.001 so zeros are not -inf on the logplot, but somewhere well below the cutoff line. Makes everything nicer
+        areas = plot.stackplot(np.arange(seq_length+2), # seq_length+2 because of the zero padding at either end
+            perfect_paired_unique + 0.001,  # so that 0 isn't -inf on the logplot, but still below cutoff
+            perfect_paired_shared,
+
+            perfect_unpaired_unique,
+            perfect_mispaired_unique,
+            perfect_unpaired_shared,
+            perfect_mispaired_shared,
+
+            mismatch_paired_unique,
+            mismatch_paired_shared,
+            
+            mismatch_unpaired_unique,
+            mismatch_mispaired_unique,
+            mismatch_unpaired_shared,
+            mismatch_mispaired_shared,
+
+            linewidth=0, colors=area_colors, zorder=5)
 
         for aa in areas:
             # if you output to pdf it strangely doesn't respect linewidth=0 perfectly, you'll have
@@ -592,6 +742,28 @@ def plot_coverage(outfile, coverage_matrices, allele_data, features, features_us
         plot.axis((0, seq_length, 1, y2))  # enforce y axis minimum at 10^0. This corresponds to zero coverage because of the +1 above
         plot.set_yscale('log')
         plot.set_ylim(bottom=0.5)
+
+    legend = pylab.subplot2grid((subplot_rows, columns), (subplot_rows-1, 0), colspan=2, adjustable='box')
+    ppp = pylab.matplotlib.patches
+    legend.add_patch(ppp.Rectangle((0, 2), 2, 2, color=area_colors[0]))
+    legend.add_patch(ppp.Rectangle((0, 0), 2, 2, color=area_colors[1]))
+    legend.add_patch(ppp.Rectangle((25, 2), 2, 2, color=area_colors[2]))
+    legend.add_patch(ppp.Rectangle((25, 0), 2, 2, color=area_colors[4]))
+    legend.add_patch(ppp.Rectangle((50, 2), 2, 2, color=area_colors[6]))
+    legend.add_patch(ppp.Rectangle((50, 0), 2, 2, color=area_colors[7]))
+    legend.add_patch(ppp.Rectangle((75, 2), 2, 2, color=area_colors[8]))
+    legend.add_patch(ppp.Rectangle((75, 0), 2, 2, color=area_colors[10]))
+    legend.text( 2.5, 3, 'paired, no mismatches, unique', va='center', size='smaller')
+    legend.text( 2.5, 1, 'paired, no mismatches, ambiguous', va='center', size='smaller')
+    legend.text(27.5, 3, 'unpaired, no mismatches, unique', va='center', size='smaller')
+    legend.text(27.5, 1, 'unpaired, no mismatches, ambiguous', va='center', size='smaller')
+    legend.text(52.5, 3, 'paired, mismatched, unique', va='center', size='smaller')
+    legend.text(52.5, 1, 'paired, mismatched, ambiguous', va='center', size='smaller')
+    legend.text(77.5, 3, 'unpaired, mismatched, unique', va='center', size='smaller')
+    legend.text(77.5, 1, 'unpaired, mismatched, ambiguous', va='center', size='smaller')
+    legend.set_xlim(0, 100)
+    legend.set_ylim(0, 4)
+    legend.axison = False
 
     figure.tight_layout()
     figure.savefig(outfile)
