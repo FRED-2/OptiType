@@ -9,178 +9,177 @@ Version: 1.0
 License: OptiType is released under a three-clause BSD license
 
 
-Introduction:
+Introduction
 -------------
-OptiType, is a novel HLA genotyping algorithm based on integer linear
+OptiType is a novel HLA genotyping algorithm based on integer linear
 programming, capable of producing accurate 4-digit HLA genotyping predictions
-from NGS data by simultaneously selecting all minor and major HLA-I alleles.
+from NGS data by simultaneously selecting all major and minor HLA Class I alleles.
 
 
-Requirement:
+Requirements
 -------------
-OptiType uses the following software and libraries:  
+OptiType uses the following software and libraries:
 
-1. Python 2.7
-2. Biopython 1.63
-3. Coopr 4.1
-4. Matplotlib 1.3.1
-5. Pandas 0.12 (with HDF5 support)
-6. HDF5 1.8.11
-7. RazerS 3.1
-8. Cplex 12.5 (or other ILP solver supported by Pyomo)
+1. [Python 2.7](https://www.python.org/)
+2. [RazerS 3.4](http://www.seqan.de/projects/razers/)
+3. [SAMtools 1.2](http://www.htslib.org/)
+4. [HDF5 1.8.15](https://www.hdfgroup.org/HDF5/)
+5. [CPLEX 12.5](http://www-01.ibm.com/software/commerce/optimization/cplex-optimizer/)
+   or other Pyomo-supported ILP solver ([GLPK](https://www.gnu.org/software/glpk/), 
+   [CBC](https://projects.coin-or.org/Cbc), ...)
 
-Please make sure you have installed said software/libraries
-and their dependencies.
+And the following Python modules:
+
+1. NumPy 1.9.3
+2. Pyomo 4.2
+3. PyTables 3.2.2
+4. Pandas 0.16.2
+5. Pysam 0.8.3
+6. Matplotlib 1.4.3
+
+Note: CPLEX has a proprietary license but is free for academic use. See IBM's
+[academic initiative.](http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative)
 
 
-Installation:
+Installation
 -------------
-First install all required software and libraries and register the static path
-in the configuration file for RazerS 3.1. CPLEX should be globally executable
-via command line. Alternative ILP solver supported by Coopr can also be used 
-by changing the config file accordingly. CPLEX is free for academic use. For more 
-details see IBMs Academic Initiative (http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative).
-Please do not change the folder structure or make sure you changed the necessary
-entries in the config file.
+1. Install all required software and libraries from the first list.
+
+2. Include SAMtools and your ILP solver in your `PATH` environment variable.
+They both have to be globally accessible every time you run OptiType, so make
+them permanent (put in in your `.bashrc` or similar shell startup script).
+
+3. Add HDF5's `lib` directory to your `LD_LIBRARY_PATH`. Make sure it's
+permanent too.
+
+4. Create and activate a Python virtual environment with the package
+[virtualenv](https://virtualenv.pypa.io/en/latest/). This will automatically
+install the package manager `pip` which you will need for the next steps.
+Always run OptiType from this virtual environment.
+
+5. Install NumPy, Pyomo, Pysam and Matplotlib with
+the following commands:
+
+    ```
+    pip install numpy
+    pip install pyomo
+    pip install pysam
+    pip install matplotlib
+    ```
+
+6. Create a new environment variable containing the path to your HDF5
+installation. It doesn't have to be permanent, but it has to be accessible
+when you install PyTables. On the bash shell it would be
+`export HDF5_DIR=/path/to/hdf5-1.8.15`
+
+7. Install PyTables and Pandas with
+
+    ```
+    pip install tables
+    pip install pandas
+    ```
+
+8. Create a configuration file following `config.ini.example`. You will find
+all necessary instructions in there. OptiType will look for the configuration
+file at `config.ini` in the same directory by default, but you can put it
+anywhere and pass it with the `-c` option when running OptiType.
 
 
-Step-by-Step Installation Guide (Unix):
+Usage
 -------------
-1) Install Python 2.7 on your system  
-Either download it from https://www.python.org/download/ or just install it by easy_install e.g. depending on your system  
 
-***The following installation steps require a working pip installation on your system.***
+Optional step zero: you might want to filter your sequencing data for
+HLA reads. Should you have to re-run OptiType multiple times on the same sample
+(different settings, etc.) it could save you time if instead of giving OptiType
+the full, multi-gigabyte sequencing data multiple times, you would rather give
+it the relevant reads only, on the order of megabytes.
 
-2) Install the Biopython package (https://pypi.python.org/pypi/biopython)
-```
-pip install biopython
-```
+You can use any read mapper to do this step, although we suggest you use RazerS3.
+Its only drawback is that due to way RazerS3 was designed, it loads all reads
+into memory, which could be a problem on older, low-memory computing nodes.
 
-3) Install the Coopr python package (https://pypi.python.org/pypi/Coopr)
-```
-pip install Coopr
-```
+Make sure to filter your files correctly depending on whether you have DNA
+(exome, WGS) or RNA-Seq data. The reference fasta files are
+`data/hla_reference_dna.fasta` and `data/hla_reference_rna.fasta` respectively.
+Below is an example for DNA sequencing data:
 
-4) Install the Matplotlib python package (https://pypi.python.org/pypi/matplotlib)
 ```
-pip install matplotlib
-```
+>razers3 -i 95 -m 1 -dr 0 -o fished_1.bam /path/to/OptiType/data/hla_reference_dna.fasta sample_1.fastq
 
-5) Install the Pandas python package (https://pypi.python.org/pypi/pandas/)
+>samtools bam2fq fished_1.bam > sample_1_fished.fastq
 
-5.1) Install hdf5 (http://www.hdfgroup.org/HDF5/)  
-Either install the pre-built binaries or build from source as following
-```
-cd <top HDF5 source code directory>
-./configure --prefix=<location for HDF5 software> 
-make >& make.out
-make check >& check.out
-make install 
-```
-5.2) Set environment variables  
-If you are using .tcshr or .cshrc,
-```
-setenv HDF5_DIR "path to hdf5 installation"
-setenv PATH ${PATH}:${HDF5_DIR}/bin
-setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${HDF5_DIR}/lib
-```
-for bash, add to your .bashrc
-```
-export HDF5_DIR="path to hdf5 installation"
-export PATH=$PATH:${HDF5_DIR}/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HDF5_DIR}/lib
+>rm fished_1.bam
 ```
 
-5.3) Install pyTables (http://www.pytables.org)
-You have to make sure that the HDF5_DIR environmental variable is still available at the time you install pyTables.
+If you have paired-end data, repeat this with the second ends' fastq file as well.
+Note: it's important that you filter the two ends individually. Don't use the
+read mapper's paired-end capabilities.
+
+After the optional filtering, OptiType can be called as follows:
 ```
-pip install tables
+>python /path/to/OptiTypePipeline.py -i sample_fished_1.fastq [sample_fished_2.fastq]
+                    (--rna | --dna) [--beta BETA] [--enumerate N]
+                    [-c CONFIG] [--verbose] --outdir /path/to/out_dir/
 ```
 
-5.4) Install Pandas
-```
-pip install pandas
-```
+This will produce a time-stamped directory inside the specified output directory
+containing a CSV file with the predicted optimal (and if enumerated, sub-optimal)
+HLA genotype, and a pdf file containing a coverage plot of the predicted alleles
+for diagnostic purposes.
 
-6) Install RazerS (http://www.seqan.de/projects/razers/)  
-Go to the project web page and download a pre-compiled binary of RazerS 3
-or follow the instruction in the Compilation from Source Code section.
-
-7) Install an ILP solver supported by Coopr (e.g. CPLEX or CBC) 
-and make sure that it is globally executable
-
-8) Configure the config.ini
-
-8.1) Set the path to the mapper
-```
-RAZERS3=/path/to/razerS3
-```
-
-8.2) Specify which solver to use (as example CBC https://projects.coin-or.org/Cbc is used)
-```
-SOLVER=cbc
-```
-
-Usage:
--------------
-1) First filter the read files with the following settings:
-```
->razers3 --percent-identity 90 --max-hits 1 --distance-range 0 --output-format sam --output sample_fished.sam
-         ./data/hla_reference.fasta sample.fastq
-```
-where reference.fasta is either nuc_reference.fasta or gen_reference.fasta
-depending on the type of NGS data. The references can be found in the ./data
-sub-folder or in the supplementary material. To use the results as input
-for OptiType the sam-files have to be converted into fastq format. On Unix-
-based operating system you can convert from sam to fastq with the following
-command:
-```
->cat sample_fished.sam | grep -v ^@ | awk '{print "@"$1"\n"$10"\n+\n"$11}' > sample_fished.fastq
-```
-For paired-end data pre-process each file individually.
-
-2) After pre-filtering, OptiType can be called as follows:
-```
->python OptiTypePipeline.py -i sample_fished_1.fastq [sample_fished_2.fastq]
-                    (--rna | --dna) [--beta BETA] [--enumerate ENUMERATE]
-                    --o ./out_dir/
-```
-This will produce a CSV with the optimal typing and possible sub-optimal
-typings if specified, as well as a coverage plot of the genotype for
-diagnostic purposes and a HTML file containing a summary of the results.
 ```
 >python OptiTypePipeline.py --help  
-usage: OptiType [-h] --input INPUT [INPUT ...] (--rna | --dna) [--beta BETA]  
-                [--enumerate ENUMERATE] --outdir OUTDIR [--verbose]
+
+usage: OptiType [-h] --input FQ [FQ] (--rna | --dna) [--beta B]
+                [--enumerate N] --outdir OUTDIR [--verbose] [--config CONFIG]
 
 OptiType: 4-digit HLA typer
 
 optional arguments:
   -h, --help            show this help message and exit
-  --input INPUT [INPUT ...], -i INPUT [INPUT ...]
-                        Fastq files with fished HLA reads. Max two files (for
-                        paired-end)
-  --rna, -r             Specifiying the mapped data as RNA.
-  --dna, -d             Specifiying the mapped data as DNA.
-  --beta BETA, -b BETA  The beta value for for homozygosity detection.
-  --enumerate ENUMERATE, -e ENUMERATE
-                        The number of enumerations.
-  --outdir OUTDIR, -o   OUTDIR
+  --input FQ [FQ], -i FQ [FQ]
+                        .fastq file(s) (fished or raw) or .bam files stored
+                        for re-use, generated by an earlier OptiType run. One
+                        file: single-end mode, two files: paired-end mode.
+  --rna, -r             Use with RNA sequencing data.
+  --dna, -d             Use with DNA sequencing data.
+  --beta B, -b B        The beta value for for homozygosity detection (see
+                        paper). Default: 0.009. Handle with care.
+  --enumerate N, -e N   Number of enumerations. OptiType will output the
+                        optimal solution and the top N-1 suboptimal solutions
+                        in the results CSV. Default: 1
+  --outdir OUTDIR, -o OUTDIR
                         Specifies the out directory to which all files should
-                        be written
+                        be written.
   --verbose, -v         Set verbose mode on.
+  --config CONFIG, -c CONFIG
+                        Path to config file. Default: config.ini in the same
+                        directory as this script
 ```
-Examples:
+
+Furthermore, depending on your settings in `config.ini` you can choose to keep
+the bam files OptiType produces when all-mapping reads against the reference:
+these will be stored in the output directory of your current run.
+
+Then, if you want to re-run OptiType on the same sample, you can give it those
+intermediate `.bam` files as input instead of `.fastq` files, and spare on the
+mapping part of the pipeline. Note: these `.bam` files have nothing to do with
+those produced during the filtering/fishing step.
+
+
+Test examples
 -------------
-DNA data (paired-end):
+DNA data (paired end):
 ```
-python OptiTypePipeline.py -i ./test/exome/NA11995_SRR766010_1_fished.fastq ./test/exome/NA11995_SRR766010_2_fished.fastq -d -v -o ./test/exome/
+python OptiTypePipeline.py -i ./test/exome/NA11995_SRR766010_1_fished.fastq ./test/exome/NA11995_SRR766010_2_fished.fastq --dna -v -o ./test/exome/
 ```
-RNA data (paired-end):
+
+RNA data (paired end):
 ```
-python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq ./test/rna/CRC_81_N_2_fished.fastq -r -v -o ./test/rna/
+python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/
 ```
-Contacts:
+
+Contact
 -------------
 András Szolek  
 szolek@informatik.uni-tuebingen.de  
@@ -190,20 +189,7 @@ and Dept. of Computer Science,
 Sand 14, 72076 Tübingen, Germany
 
 
-Downloads:
--------------
-
-1. http://python.org/download/
-2. http://biopython.org/
-3. http://software.sandia.gov/trac/coopr
-4. http://matplotlib.org/
-5. http://pandas.pydata.org/
-6. http://www.hdfgroup.org/HDF5/
-7. https://www.seqan.de/projects/razers/
-8. http://www-01.ibm.com/software/info/ilog/
-
-
-Reference:
+Reference
 -------------
 Szolek, A, Schubert, B, Mohr, C, Sturm, M, Feldhahn, M, and Kohlbacher, O (2014).
 OptiType: precision HLA typing from next-generation sequencing data
