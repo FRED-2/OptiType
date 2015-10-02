@@ -34,7 +34,7 @@ deletebam=true
 # properly mapped read pairs. Note: unpaired reads will be reported on the
 # result coverage plots for completeness, regardless of this setting.
 
-unpaired_weight=0.2  # we'll enable this setting later
+unpaired_weight=0  # 0.2 would mean single reads are "worth" 20% of paired reads
 
 # We call a read pair discordant if its two ends best-map to two disjoint sets
 # of alleles. Such reads can be either omitted or either of their ends treated
