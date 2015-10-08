@@ -30,11 +30,12 @@ deletebam=true
 # In paired-end mode one might want to use reads with just one mapped end (e.g.,
 # the other end falls outside the reference region). This setting allows the
 # user to keep them with an optionally reduced weight. A value of 0 means they
-# are discarded for typing, a value of 1 means they are treated as valuable as
-# properly mapped read pairs. Note: unpaired reads will be reported on the
-# result coverage plots for completeness, regardless of this setting.
+# are discarded for typing, 0.2 means single reads are "worth" 20% of paired
+# reads, and a value of 1 means they are treated as valuable as properly mapped
+# read pairs. Note: unpaired reads will be reported on the result coverage plots
+# for completeness, regardless of this setting.
 
-unpaired_weight=0  # 0.2 would mean single reads are "worth" 20% of paired reads
+unpaired_weight=0
 
 # We call a read pair discordant if its two ends best-map to two disjoint sets
 # of alleles. Such reads can be either omitted or either of their ends treated
