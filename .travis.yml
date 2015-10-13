@@ -23,4 +23,4 @@ before_script:
 - pip install tables
 - pip install pandas
 script:
-  python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/ -c ./test/test_config.ini
+  python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/ -c ./test/test_config.ini
