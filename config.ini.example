@@ -2,7 +2,7 @@
 
 # Absolute path to RazerS3 binary, and number of threads to use for mapping
 
-razers3=/path/to/razerS3
+razers3=/path/to/razers3
 threads=16
 
 [ilp]
