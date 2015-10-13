@@ -176,7 +176,7 @@ python OptiTypePipeline.py -i ./test/exome/NA11995_SRR766010_1_fished.fastq ./te
 
 RNA data (paired end):
 ```
-python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/
+python OptiTypePipeline.py -i ./test/rna/CRC_81_N_1_fished.fastq ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/
 ```
 
 Contact
