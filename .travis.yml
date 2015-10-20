@@ -1,0 +1,26 @@
+sudo: false
+language: python
+python:
+  - "2.7"
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - glpk
+      
+before_script:
+- wget http://packages.seqan.de/razers3/razers3-3.4.0-Linux-x86_64.tar.bz2
+- tar xf razers3-3.4.0-Linux-x86_64.tar.bz2
+- pip install numpy
+- pip install pyomo
+- pip install pysam
+- pip install matplotlib
+- wget http://www.hdfgroup.org/ftp/HDF5/current/bin/linux-centos7-x86_64/hdf5-1.8.15-patch1-linux-centos7-x86_64-shared.tar.gz
+- tar xf hdf5-1.8.15-patch1-linux-centos7-x86_64-shared.tar.gz
+- export LD_LIBRARY_PATH=/home/travis/build/FRED-2/OptiType/hdf5-1.8.15-patch1-linux-centos7-x86_64-shared/lib:$LD_LIBRARY_PATH
+- export HDF5_DIR=/home/travis/build/FRED-2/OptiType/hdf5-1.8.15-patch1-linux-centos7-x86_64-shared/
+- pip install tables
+- pip install pandas
+script:
+  python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/ -c ./test/test_config.ini
