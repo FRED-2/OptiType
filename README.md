@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/FRED-2/OptiType.svg?branch=master)](https://travis-ci.org/FRED-2/OptiType)
 OptiType
 ========
 
