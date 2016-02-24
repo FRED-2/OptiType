@@ -300,7 +300,7 @@ if __name__ == '__main__':
         binary_p, binary_mis, binary_un =  ht.create_paired_matrix(binary1, binary2)
 
         if binary_p.shape[0] < len(id1) * 0.1:
-            print ("\nWARNING: Less than 10% of reads could be paired. Consider an appropriate unpaired_weight setting "
+            print ("\nWARNING: Less than 10%% of reads could be paired. Consider an appropriate unpaired_weight setting "
              "in your config file (currently %.3f), because you may need to resort to using unpaired reads.") % unpaired_weight
 
         if unpaired_weight > 0:
