@@ -16,7 +16,7 @@ before_script:
 - pip install pyomo
 - pip install pysam
 - pip install matplotlib
-- wget http://www.hdfgroup.org/ftp/HDF5/current/bin/linux-centos7-x86_64-gcc483/hdf5-1.8.16-linux-centos7-x86_64-gcc483-shared.tar.gz
+- wget https://www.hdfgroup.org/ftp/HDF5/current/bin/linux-centos7-x86_64-gcc485/hdf5-1.8.17-linux-centos7-x86_64-gcc485-static.tar.gz
 - tar xf hdf5-1.8.16-linux-centos7-x86_64-gcc483-shared.tar.gz
 - export LD_LIBRARY_PATH=/home/travis/build/FRED-2/OptiType/hdf5-1.8.16-linux-centos7-x86_64-gcc483-shared/lib:$LD_LIBRARY_PATH
 - export HDF5_DIR=/home/travis/build/FRED-2/OptiType/hdf5-1.8.16-linux-centos7-x86_64-gcc483-shared/
