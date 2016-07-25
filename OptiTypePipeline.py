@@ -142,11 +142,11 @@ def get_types(allele_id):
 
 def get_num_threads(configured_threads):
   try:
-    import psutil
-  except ImportError:
+    import multiprocessing
+  except (ImportError, NotImplementedError):
     return 2
-  if(psutil.cpu_count() < configured_threads):
-    return psutil.cpu_count()
+  if(multiprocessing.cpu_count() < configured_threads):
+    return multiprocessing.cpu_count()
   return configured_threads
 
 
