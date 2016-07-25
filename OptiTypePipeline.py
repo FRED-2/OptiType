@@ -139,10 +139,15 @@ def get_types(allele_id):
             return table.loc[aa[0]]['4digit']
         else:
             return table.loc[aa[0]]['4digit']  #+ '/' + table.loc[aa[1]]['4digit']
-            
-            
-            
-            
+
+def get_num_threads(configured_threads):
+  try:
+    import multiprocessing
+  except (ImportError, NotImplementedError):
+    return 2
+  if(multiprocessing.cpu_count() < configured_threads):
+    return multiprocessing.cpu_count()
+  return configured_threads
 
 
 if __name__ == '__main__':
@@ -251,10 +256,14 @@ if __name__ == '__main__':
 
     # mapping fished file to reference
     if not bam_input:
-        for (i, sample), outbam in zip(enumerate(args.input), bam_paths):
+        threads = get_num_threads(config.getint("mapping", "threads"))
+        if VERBOSE:
+          print "\nmapping with %s threads..." % threads
+        for (i, sample), outbam in zip(enumerate(args.input), bam_paths):          
             if VERBOSE:
                 print "\n", ht.now(), "Mapping %s to %s reference..." % (os.path.basename(sample), ref_type.upper())
-            subprocess.call(MAPPING_CMD % (config.getint("mapping", "threads"), outbam,
+
+            subprocess.call(MAPPING_CMD % (threads, outbam,
                                            MAPPING_REF[ref_type], sample), shell=True)
 
     # sam-to-hdf5
@@ -364,12 +373,13 @@ if __name__ == '__main__':
         groups_4digit[type_4digit].append(allele)
 
     sparse_dict = ht.mtx_to_sparse_dict(compact_mtx)
-
+    threads = get_num_threads(config.getint("ilp", "threads"))               
     if VERBOSE:
+        print "\nstarting ilp solver with %s threads..." % threads
         print "\n", ht.now(), 'Initializing OptiType model...'
 
     op = OptiType(sparse_dict, compact_occ, groups_4digit, table, args.beta, 2,
-                  config.get("ilp", "solver"), config.getint("ilp", "threads"), verbosity=VERBOSE)
+                  config.get("ilp", "solver"), threads, verbosity=VERBOSE)
     result = op.solve(args.enumerate)
 
     if VERBOSE:
