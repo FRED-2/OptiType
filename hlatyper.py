@@ -103,9 +103,10 @@ def sam_to_hdf(samfile):
     first_hit_row = True
     total_hits = 0
 
-    with open(samfile, 'r') as f:
+    with open(samfile, 'rb') as f:
         last_read_id = None
         for line in f:
+            line = line.decode('utf-8')
             if line.startswith('@'):
                 if line.startswith('@SQ'):
                     allele_ids.append(line.split('\t')[1][3:]) # SN:HLA:HLA00001
@@ -121,7 +122,7 @@ def sam_to_hdf(samfile):
                 first_hit_row = False
                 columns = line.split()
                 try:
-                    nm_index = map(lambda x: x.startswith('NM:'), columns).index(True)
+                    nm_index = list(map(lambda x: x.startswith('NM:'), columns)).index(True)
                 except ValueError:
                     # TODO: we don't really handle the case if NM-tag is not present, code will fail later
                     print('\tNo NM-tag found in SAM file!')
@@ -143,10 +144,11 @@ def sam_to_hdf(samfile):
 
     milestones = [x * total_hits / 10 for x in range(1, 11)]  # for progress bar
 
-    with open(samfile, 'r') as f:
+    with open(samfile, 'rb') as f:
         counter = 0
         percent = 0
         for line in f:
+            line = line.decode('utf-8')
             if line.startswith('@'):
                 continue
 
