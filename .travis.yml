@@ -30,6 +30,6 @@ script:
 after_success:
   - if [ "$TRAVIS_BRANCH" == "master" ]; then
     docker build -t fred2/optitype .
-    docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
+    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
     docker push fred2/optitype;
     fi
