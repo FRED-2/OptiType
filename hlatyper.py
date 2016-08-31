@@ -1,3 +1,10 @@
+from __future__ import division
+from __future__ import print_function
+from builtins import zip
+from builtins import str
+from builtins import map
+from builtins import range
+from past.utils import old_div
 import pandas as pd
 import numpy as np
 import re
@@ -60,15 +67,15 @@ def store_dataframes(out_hdf, **kwargs):
     complib = kwargs.pop('complib', 'zlib')  # not explicitly asked for as arguments
 
     if VERBOSE:
-        print now(), 'Storing %d DataFrames in file %s with compression settings %d %s...' % (len(kwargs), out_hdf, complevel, complib)
+        print(now(), 'Storing %d DataFrames in file %s with compression settings %d %s...' % (len(kwargs), out_hdf, complevel, complib))
 
     store = pd.HDFStore(out_hdf, complevel=complevel, complib=complib)  # TODO: WRITE ONLY? it probably appends now
-    for table_name, dataframe in kwargs.iteritems():
+    for table_name, dataframe in kwargs.items():
         store[table_name] = dataframe
     store.close()
 
     if VERBOSE:
-        print now(), 'DataFrames stored in file.'
+        print(now(), 'DataFrames stored in file.')
 
 
 def load_hdf(in_hdf, as_dict=False, *args):  # isn't really neccesary, but makes a read-only flag on it to be sure
@@ -87,7 +94,7 @@ def load_hdf(in_hdf, as_dict=False, *args):  # isn't really neccesary, but makes
 
 def sam_to_hdf(samfile):
     if VERBOSE:
-        print now(), 'Loading alleles and read IDs from %s...' % samfile
+        print(now(), 'Loading alleles and read IDs from %s...' % samfile)
 
     # run through the SAM file once to see how many reads and alleles we are dealing with
     # for a one-step DataFrame initialization instead of slow growing
@@ -117,12 +124,12 @@ def sam_to_hdf(samfile):
                     nm_index = map(lambda x: x.startswith('NM:'), columns).index(True)
                 except ValueError:
                     # TODO: we don't really handle the case if NM-tag is not present, code will fail later
-                    print '\tNo NM-tag found in SAM file!'
+                    print('\tNo NM-tag found in SAM file!')
                     nm_index = None
 
     if VERBOSE:
-        print now(), '%d alleles and %d reads found.' % (len(allele_ids), len(read_ids))
-        print now(), 'Initializing mapping matrix...'
+        print(now(), '%d alleles and %d reads found.' % (len(allele_ids), len(read_ids)))
+        print(now(), 'Initializing mapping matrix...')
 
     # major performance increase if we initialize a numpy zero-matrix and pass that in the constructor
     # than if we just let pandas initialize its default NaN matrix
@@ -132,7 +139,7 @@ def sam_to_hdf(samfile):
     read_details = OrderedDict()
 
     if VERBOSE:
-        print now(), '%dx%d mapping matrix initialized. Populating %d hits from SAM file...' % (len(read_ids), len(allele_ids), total_hits)
+        print(now(), '%dx%d mapping matrix initialized. Populating %d hits from SAM file...' % (len(read_ids), len(allele_ids), total_hits))
 
     milestones = [x * total_hits / 10 for x in range(1, 11)]  # for progress bar
 
@@ -155,9 +162,9 @@ def sam_to_hdf(samfile):
             if counter in milestones:
                 percent += 10
                 if VERBOSE:
-                    print '\t%d%% completed' % percent
+                    print('\t%d%% completed' % percent)
     if VERBOSE:
-        print now(), '%d elements filled. Matrix sparsity: 1 in %.2f' % (counter, matrix_pos.shape[0]*matrix_pos.shape[1]/float(counter))
+        print(now(), '%d elements filled. Matrix sparsity: 1 in %.2f' % (counter, matrix_pos.shape[0]*matrix_pos.shape[1]/float(counter)))
 
     # convert HLA:HLA00001 identifiers to HLA00001
     matrix_pos.rename(columns=lambda x: x.replace('HLA:', ''), inplace=True)
@@ -170,7 +177,7 @@ def sam_to_hdf(samfile):
 
 def pysam_to_hdf(samfile):
     if not PYSAM_AVAILABLE:
-        print "Warning: PySam not available on the system. Falling back to primitive SAM parsing."
+        print("Warning: PySam not available on the system. Falling back to primitive SAM parsing.")
         return sam_to_hdf(samfile)
 
     sam_or_bam = 'rb' if samfile.endswith('.bam') else 'r'
@@ -192,7 +199,7 @@ def pysam_to_hdf(samfile):
     read_details = OrderedDict()
 
     if VERBOSE:
-        print now(), 'Loading %s started. Number of HLA reads loaded (updated every thousand):' % samfile
+        print(now(), 'Loading %s started. Number of HLA reads loaded (updated every thousand):' % samfile)
 
     read_counter = 0
     hit_counter = 0
@@ -210,7 +217,7 @@ def pysam_to_hdf(samfile):
             read_details[aln.qname] = (aln.get_tag('NM'), aln.query_length)  # aln.reference_length it used to be. Soft-trimming is out of question now.
             read_counter += 1
             if VERBOSE and not (read_counter % 1000):
-                sys.stdout.write('%dK...' % (len(hits)/1000))
+                sys.stdout.write('%dK...' % (old_div(len(hits),1000)))
                 sys.stdout.flush()
             if xa_tag and aln.has_tag('XA'):
                 current_row = hits[aln.qname]  # we may access this hundreds of times, better do it directly
@@ -226,15 +233,15 @@ def pysam_to_hdf(samfile):
         # num_mismatches = aln.get_tag('NM')  # if we ever need suboptimal alignments... doubtful.
 
     if VERBOSE:
-        print '\n', now(), len(hits), 'reads loaded. Creating dataframe...'
-    pos_df = pd.DataFrame.from_items(hits.iteritems()).T
+        print('\n', now(), len(hits), 'reads loaded. Creating dataframe...')
+    pos_df = pd.DataFrame.from_items(iter(hits.items())).T
     pos_df.columns = sam.references[:]
     details_df = pd.DataFrame.from_dict(read_details, orient='index')
     details_df.columns = ['mismatches', 'read_length']
     if VERBOSE:
-        print now(), 'Dataframes created. Shape: %d x %d, hits: %d (%d), sparsity: 1 in %.2f' % (
+        print(now(), 'Dataframes created. Shape: %d x %d, hits: %d (%d), sparsity: 1 in %.2f' % (
             pos_df.shape[0], pos_df.shape[1], np.sign(pos_df).sum().sum(), hit_counter, pos_df.shape[0]*pos_df.shape[1]/float(hit_counter)
-            )  # TODO: maybe return the binary here right away if we're using it to calculate density anyway.
+            ))  # TODO: maybe return the binary here right away if we're using it to calculate density anyway.
     return pos_df, details_df
 
 
@@ -244,12 +251,12 @@ def get_compact_model(hit_df, weak_hit_df=None, weight=None):
 # Note: one can pass "weak" hits (e.g., unpaired reads) and use them with a lower weight.
 
     hit_df = hit_df.loc[hit_df.any(axis=1)]  # remove all-zero rows
-    occurence = {r[0]: len(r) for r in hit_df.groupby(hit_df.columns.tolist()).groups.itervalues()}
+    occurence = {r[0]: len(r) for r in hit_df.groupby(hit_df.columns.tolist()).groups.values()}
 
     if weak_hit_df is not None:
         weak_hit_df = weak_hit_df.loc[weak_hit_df.any(axis=1)]
         assert 0 < weight <= 1, 'weak hit weight must be in (0, 1]'
-        weak_occ = {r[0]: len(r)*weight for r in weak_hit_df.groupby(weak_hit_df.columns.tolist()).groups.itervalues()}
+        weak_occ = {r[0]: len(r)*weight for r in weak_hit_df.groupby(weak_hit_df.columns.tolist()).groups.values()}
         occurence.update(weak_occ)
         unique_mtx = pd.concat([hit_df.drop_duplicates(), weak_hit_df.drop_duplicates()])
     else:
@@ -273,7 +280,7 @@ def mtx_to_sparse_dict(hit_df):
 def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
     from Bio import SeqIO
     if VERBOSE:
-        print now(), 'Loading IMGT allele dat file...'
+        print(now(), 'Loading IMGT allele dat file...')
 
     alleles = OrderedDict()
 
@@ -284,7 +291,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
             alleles[record.id] = record
 
     if VERBOSE:
-        print now(), 'Initializing allele DataFrame...'
+        print(now(), 'Initializing allele DataFrame...')
 
     '''
     id      HLA000001
@@ -306,15 +313,15 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
 
     allele_info = 'id type 4digit locus flags len_dat len_gen len_nuc full_gen full_nuc'
 
-    table = pd.DataFrame(index=alleles.keys(), columns=allele_info.split())
+    table = pd.DataFrame(index=list(alleles.keys()), columns=allele_info.split())
     sequences = []
 
     if VERBOSE:
-        print now(), 'Filling DataFrame with allele data...'
+        print(now(), 'Filling DataFrame with allele data...')
 
     all_features = []  # contains tuples: (HLA id, feature type, feature number, feature start, feature end)
 
-    for allele in alleles.itervalues():
+    for allele in alleles.values():
 
         allele_type = allele.description.replace('HLA-', '').split(',')[0]
 
@@ -358,15 +365,15 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
         if cds:
             if sum(map(len, [f for f in features if f.type == 'exon'])) != len(cds[0]):
                 if VERBOSE:
-                    print "\tCDS length doesn't match sum of exons for", allele.id, allele_type
+                    print("\tCDS length doesn't match sum of exons for", allele.id, allele_type)
                 table.loc[allele.id]['flags'] += 2
         else:
             if VERBOSE:
-                print "\tNo CDS found for", allele.id, allele_type
+                print("\tNo CDS found for", allele.id, allele_type)
             table.loc[allele.id]['flags'] += 2
 
     if VERBOSE:
-        print now(), 'Loading gen and nuc files...'
+        print(now(), 'Loading gen and nuc files...')
 
     with open(fasta_gen, 'r') as fasta_gen:
         for record in SeqIO.parse(fasta_gen, 'fasta'):
@@ -398,7 +405,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
     #         print i_id, 'is fully annotated on all exons and introns and UTRs'
 
     if VERBOSE:
-        print now(), 'Checking dat features vs gen/nuc sequences...'
+        print(now(), 'Checking dat features vs gen/nuc sequences...')
 
     for allele, features in joined.groupby('id'):
         row = features.irow(0)  # first row of the features subtable. Contains all allele information because of the join
@@ -406,15 +413,15 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
         sum_exons_length = features.loc[features['feature']=='exon']['length'].sum()
         if row['len_gen']>0 and row['len_gen'] != sum_features_length:
             if VERBOSE:
-                print "\tFeature lengths don't add up to gen sequence length", allele, row['len_gen'], sum_features_length, row['type']
+                print("\tFeature lengths don't add up to gen sequence length", allele, row['len_gen'], sum_features_length, row['type'])
             table.loc[allele]['flags'] += 4
         if row['len_nuc']>0 and row['len_nuc'] != sum_exons_length:
             if VERBOSE:
-                print "\tExon lengths don't add up to nuc sequence length", allele, row['len_nuc'], sum_exons_length, row['type']
+                print("\tExon lengths don't add up to nuc sequence length", allele, row['len_nuc'], sum_exons_length, row['type'])
             table.loc[allele]['flags'] += 8
 
     if VERBOSE:
-        print now(), 'Sanity check finished. Computing feature sequences...'
+        print(now(), 'Sanity check finished. Computing feature sequences...')
 
     ft_seq_lookup = OrderedDict()
     ft_seq_lookup['---DUMMY---'] = 0  # it will be useful later on if 0 isn't used. lookup_id*boolean operation, etc.
@@ -433,7 +440,7 @@ def create_allele_dataframes(imgt_dat, fasta_gen, fasta_nuc):
             else:
                 all_features.loc[ft_idx, 'seq_id'] = ft_seq_lookup[ft_seq]
 
-    feature_sequences = pd.DataFrame([seq for seq in ft_seq_lookup.keys()], columns=['sequence'])  # , index=ft_seq_lookup.values() but it's 0,1,2,... anyway, as the default
+    feature_sequences = pd.DataFrame([seq for seq in list(ft_seq_lookup.keys())], columns=['sequence'])  # , index=ft_seq_lookup.values() but it's 0,1,2,... anyway, as the default
 
     return table, all_features, sequences, feature_sequences
 
@@ -502,8 +509,8 @@ def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
     # just in two different files (1000 genomes).
 
     if id_cleaning is not None:
-        binary_1.index = map(id_cleaning, binary_1.index)
-        binary_2.index = map(id_cleaning, binary_2.index)
+        binary_1.index = list(map(id_cleaning, binary_1.index))
+        binary_2.index = list(map(id_cleaning, binary_2.index))
 
     common_read_ids = binary_1.index.intersection(binary_2.index)
     only_1 = binary_1.index.difference(binary_2.index)
@@ -518,8 +525,8 @@ def create_paired_matrix(binary_1, binary_2, id_cleaning=None):
     b_unpaired = pd.concat([binary_1.loc[only_1], binary_2.loc[only_2]])  # concatenation for reads w/ just one end mapping anywhere
 
     if VERBOSE:
-        print now(), ('Alignment pairing completed. %d paired, %d unpaired, %d discordant ' %
-            (b_paired.shape[0], b_unpaired.shape[0], b_mispaired.shape[0]))
+        print(now(), ('Alignment pairing completed. %d paired, %d unpaired, %d discordant ' %
+            (b_paired.shape[0], b_unpaired.shape[0], b_mispaired.shape[0])))
 
     return b_paired, b_mispaired, b_unpaired
 

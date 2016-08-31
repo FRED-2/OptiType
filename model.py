@@ -12,6 +12,10 @@ It is dependent on Coopr and uses an external ILP solver such as GLPK or CPLEX
 """
 
 from __future__ import division
+from __future__ import print_function
+from builtins import str
+from builtins import range
+from builtins import object
 from pyomo.environ import ConcreteModel, Set, Param, Var, Binary, Objective, Constraint, ConstraintList, maximize
 from pyomo.opt import SolverFactory, TerminationCondition
 from collections import defaultdict
@@ -43,13 +47,13 @@ class OptiType(object):
         self.__groups_4digit = groups_4digit
 
         loci_alleles = defaultdict(list)
-        for type_4digit, group_alleles in groups_4digit.iteritems():
+        for type_4digit, group_alleles in groups_4digit.items():
             # print type_4digit, group_alleles
             loci_alleles[type_4digit.split('*')[0]].extend(group_alleles)
 
         loci = loci_alleles
 
-        self.__allele_to_4digit = {allele: type_4digit for type_4digit, group in groups_4digit.iteritems() for allele in
+        self.__allele_to_4digit = {allele: type_4digit for type_4digit, group in groups_4digit.items() for allele in
                                    group}
 
         '''
@@ -59,12 +63,12 @@ class OptiType(object):
         model = ConcreteModel()
 
         # init Sets
-        model.LociNames = Set(initialize=loci.keys())
+        model.LociNames = Set(initialize=list(loci.keys()))
         model.Loci = Set(model.LociNames, initialize=lambda m, l: loci[l])
 
-        L = list(itertools.chain(*loci.values()))
+        L = list(itertools.chain(*list(loci.values())))
         reconst = {allele_id: 0.01 for allele_id in L if '_' in allele_id}
-        R = set([r for (r, _) in cov.keys()])
+        R = set([r for (r, _) in list(cov.keys())])
         model.L = Set(initialize=L)
         model.R = Set(initialize=R)
 
@@ -137,7 +141,7 @@ class OptiType(object):
 
         if self.__changed or self.__ks != ks:
             self.__ks = ks
-            for k in xrange(ks):
+            for k in range(ks):
                 expr = 0
 
                 self.__instance.preprocess()
@@ -153,7 +157,7 @@ class OptiType(object):
                 #     res.write(num=1)
 
                 if res.solver.termination_condition != TerminationCondition.optimal:
-                    print "Optimal solution hasn't been obtained. This is a terminal problem."  # TODO message, exit
+                    print("Optimal solution hasn't been obtained. This is a terminal problem.")  # TODO message, exit
                     break
 
                 selected = []
@@ -188,7 +192,7 @@ class OptiType(object):
                 #     self.__instance.c.pprint()
                 aas = [self.__allele_to_4digit[x].split('*')[0] for x in selected]
                 c = dict.fromkeys(aas, 1)
-                for i in xrange(len(aas)):
+                for i in range(len(aas)):
                     if aas.count(aas[i]) < 2:
                         d[aas[i] + "1"].append(selected[i])
                         d[aas[i] + "2"].append(selected[i])
@@ -239,7 +243,7 @@ class OptiType(object):
         inst.c.add(expr1 == k)
         d = defaultdict(list)
 
-        for _ in xrange(ks):
+        for _ in range(ks):
             inst.preprocess()
             try:
                 res = self.__solver.solve(inst, options=self.__opts, tee=self.__verbosity)
@@ -253,7 +257,7 @@ class OptiType(object):
                 res.write(num=1)
 
             if res.solver.termination_condition != TerminationCondition.optimal:
-                print "Optimal solution hasn't been obtained. This is a terminal problem."  # TODO message, exit
+                print("Optimal solution hasn't been obtained. This is a terminal problem.")  # TODO message, exit
                 break
 
             selected = []
@@ -282,10 +286,10 @@ class OptiType(object):
             inst.c.add(expr >= 1)
 
             if self.__verbosity > 0:
-                print selected
+                print(selected)
             aas = [self.__allele_to_4digit[x].split('*')[0] for x in selected]
             c = dict.fromkeys(aas, 1)
-            for i in xrange(len(aas)):
+            for i in range(len(aas)):
                 if aas.count(aas[i]) < 2:
                     d[aas[i] + "1"].append(selected[i])
                     d[aas[i] + "2"].append(selected[i])
@@ -330,9 +334,9 @@ class OptiType(object):
         # generate for each of the provided alleles the fixation constraint:
         for a in set(fixed_alleles):
             expr_f = 0
-            print self.__groups_4digit
+            print(self.__groups_4digit)
             for ids in self.__groups_4digit[a]:
-                print ids
+                print(ids)
                 expr_f += inst.x[ids]
             inst.c.add(expr_f == 1)
 
@@ -351,7 +355,7 @@ class OptiType(object):
 
         aas = [self.__allele_to_4digit[x].split('*')[0] for x in opt_ids]
         c = dict.fromkeys(aas, 1)
-        for i in xrange(len(aas)):
+        for i in range(len(aas)):
             if aas.count(aas[i]) < 2:
                 d[aas[i] + "1"].append(opt_ids[i])
                 d[aas[i] + "2"].append(opt_ids[i])
@@ -386,7 +390,7 @@ class OptiType(object):
 
         aas = [self.__allele_to_4digit[x].split('*')[0] for x in opt_ids]
         c = dict.fromkeys(aas, 1)
-        for i in xrange(len(aas)):
+        for i in range(len(aas)):
             if aas.count(aas[i]) < 2:
                 d[aas[i] + "1"].append(opt_ids[i])
                 d[aas[i] + "2"].append(opt_ids[i])
@@ -421,13 +425,13 @@ class OptiType(object):
                 res = self.__solver.solve(self.__instance, tee=self.__verbosity)  # ,tee=True) verbose solvinf
                 self.__instance.solutions.load_from(res)
             except:
-                print Warning("There is no replacement for allele " + self.__allele_to_4digit[j])
+                print(Warning("There is no replacement for allele " + self.__allele_to_4digit[j]))
                 continue
 
             selected = [al for al in self.__instance.x if 0.99 <= self.__instance.x[al].value <= 1.01]
             aas = [self.__allele_to_4digit[x].split('*')[0] for x in selected]
             c = dict.fromkeys(aas, 1)
-            for q in xrange(len(aas)):
+            for q in range(len(aas)):
                 if aas.count(aas[q]) < 2:
                     d[aas[q] + "1"].append(selected[q])
                     d[aas[q] + "2"].append(selected[q])
@@ -479,7 +483,7 @@ class OptiType(object):
         selected = [al for al in inst.x if 0.99 <= inst.x[al].value <= 1.01]
         aas = [self.__allele_to_4digit[x].split('*')[0] for x in selected]
         c = dict.fromkeys(aas, 1)
-        for q in xrange(len(aas)):
+        for q in range(len(aas)):
             if aas.count(aas[q]) < 2:
                 d[aas[q] + "1"].append(selected[q])
                 d[aas[q] + "2"].append(selected[q])

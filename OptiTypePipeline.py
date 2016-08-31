@@ -95,6 +95,13 @@ optional arguments:
                         be written
   --verbose, -v         Set verbose mode on.
 """
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import zip
+from builtins import filter
+from builtins import map
+from builtins import range
 
 ## eliminate dependency on an X11 server
 import matplotlib
@@ -104,7 +111,7 @@ import sys
 import subprocess
 import os
 import argparse
-import ConfigParser
+import configparser
 import time
 import datetime
 import pandas as pd
@@ -207,7 +214,7 @@ if __name__ == '__main__':
             "See config.ini.example and note that its fields have changed recently.")
         sys.exit(-1)
 
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.read(args.config.name)
 
     unpaired_weight = config.getfloat('behavior', 'unpaired_weight')
@@ -218,15 +225,15 @@ if __name__ == '__main__':
 
     # test if inputs are legit:
     if args.beta < 0.0 or args.beta >= 0.1:
-        print "Beta value is not correctly chosen. Please choose another beta value between [0,0.1]"
+        print("Beta value is not correctly chosen. Please choose another beta value between [0,0.1]")
         sys.exit(-1)
 
     if args.enumerate <= 0:
-        print "The specified number of enumerations must be bigger than %i"%args.enumeration
+        print("The specified number of enumerations must be bigger than %i"%args.enumeration)
         sys.exit(-1)
 
     if len(args.input) not in (1, 2):
-        print "Number of input files can only be 1 (single-end) or 2 (paired-end)"
+        print("Number of input files can only be 1 (single-end) or 2 (paired-end)")
         sys.exit(-1)
 
     input_extension = args.input[0].split('.')[-1]
@@ -258,10 +265,10 @@ if __name__ == '__main__':
     if not bam_input:
         threads = get_num_threads(config.getint("mapping", "threads"))
         if VERBOSE:
-          print "\nmapping with %s threads..." % threads
+          print("\nmapping with %s threads..." % threads)
         for (i, sample), outbam in zip(enumerate(args.input), bam_paths):          
             if VERBOSE:
-                print "\n", ht.now(), "Mapping %s to %s reference..." % (os.path.basename(sample), ref_type.upper())
+                print("\n", ht.now(), "Mapping %s to %s reference..." % (os.path.basename(sample), ref_type.upper()))
 
             subprocess.call(MAPPING_CMD % (threads, outbam,
                                            MAPPING_REF[ref_type], sample), shell=True)
@@ -269,7 +276,7 @@ if __name__ == '__main__':
     # sam-to-hdf5
     table, features = ht.load_hdf(ALLELE_HDF, False, 'table', 'features')
     if VERBOSE:
-        print "\n", ht.now(), "Generating binary hit matrix."
+        print("\n", ht.now(), "Generating binary hit matrix.")
 
     if is_paired:
         # combine matrices for paired-end mapping
@@ -299,18 +306,18 @@ if __name__ == '__main__':
             # if this case is true you have to edit also all pos,etc,desc indices such that the plotting works correctly
             # again .. maybe it is also neccessary to test for the last two characters
             cut_last_char = lambda x: x[:-1]
-            binary1.index = map(cut_last_char, binary1.index)
-            binary2.index = map(cut_last_char, binary2.index)
-            pos.index = map(cut_last_char, pos.index)
-            pos2.index = map(cut_last_char, pos2.index)
-            read_details.index = map(cut_last_char, read_details.index)
-            read_details2.index = map(cut_last_char, read_details2.index)
+            binary1.index = list(map(cut_last_char, binary1.index))
+            binary2.index = list(map(cut_last_char, binary2.index))
+            pos.index = list(map(cut_last_char, pos.index))
+            pos2.index = list(map(cut_last_char, pos2.index))
+            read_details.index = list(map(cut_last_char, read_details.index))
+            read_details2.index = list(map(cut_last_char, read_details2.index))
             
         binary_p, binary_mis, binary_un =  ht.create_paired_matrix(binary1, binary2)
 
         if binary_p.shape[0] < len(id1) * 0.1:
-            print ("\nWARNING: Less than 10%% of reads could be paired. Consider an appropriate unpaired_weight setting "
-             "in your config file (currently %.3f), because you may need to resort to using unpaired reads.") % unpaired_weight
+            print(("\nWARNING: Less than 10%% of reads could be paired. Consider an appropriate unpaired_weight setting "
+             "in your config file (currently %.3f), because you may need to resort to using unpaired reads.") % unpaired_weight)
 
         if unpaired_weight > 0:
             if use_discordant:
@@ -330,30 +337,30 @@ if __name__ == '__main__':
 
     # dimensionality reduction and typing
 
-    alleles_to_keep = filter(is_frequent, binary.columns)
+    alleles_to_keep = list(filter(is_frequent, binary.columns))
     binary = binary[alleles_to_keep]
 
     if VERBOSE:
-        print "\n", ht.now(), 'temporary pruning of identical rows and columns'
+        print("\n", ht.now(), 'temporary pruning of identical rows and columns')
     unique_col, representing = ht.prune_identical_alleles(binary, report_groups=True)
-    representing_df = pd.DataFrame([[a1, a2] for a1, a_l in representing.iteritems() for a2 in a_l],
+    representing_df = pd.DataFrame([[a1, a2] for a1, a_l in representing.items() for a2 in a_l],
                                    columns=['representative', 'represented'])
 
     temp_pruned = ht.prune_identical_reads(unique_col)
 
     if VERBOSE:
-        print "\n", ht.now(), 'Size of mtx with unique rows and columns:', temp_pruned.shape
-        print ht.now(), 'determining minimal set of non-overshadowed alleles'
+        print("\n", ht.now(), 'Size of mtx with unique rows and columns:', temp_pruned.shape)
+        print(ht.now(), 'determining minimal set of non-overshadowed alleles')
 
     minimal_alleles = ht.prune_overshadowed_alleles(temp_pruned)
 
     if VERBOSE:
-        print "\n", ht.now(), 'Keeping only the minimal number of required alleles', minimal_alleles.shape
+        print("\n", ht.now(), 'Keeping only the minimal number of required alleles', minimal_alleles.shape)
 
     binary = binary[minimal_alleles]
 
     if VERBOSE:
-        print "\n", ht.now(), 'Creating compact model...'
+        print("\n", ht.now(), 'Creating compact model...')
 
     if is_paired and unpaired_weight > 0:
         if use_discordant:
@@ -375,15 +382,15 @@ if __name__ == '__main__':
     sparse_dict = ht.mtx_to_sparse_dict(compact_mtx)
     threads = get_num_threads(config.getint("ilp", "threads"))               
     if VERBOSE:
-        print "\nstarting ilp solver with %s threads..." % threads
-        print "\n", ht.now(), 'Initializing OptiType model...'
+        print("\nstarting ilp solver with %s threads..." % threads)
+        print("\n", ht.now(), 'Initializing OptiType model...')
 
     op = OptiType(sparse_dict, compact_occ, groups_4digit, table, args.beta, 2,
                   config.get("ilp", "solver"), threads, verbosity=VERBOSE)
     result = op.solve(args.enumerate)
 
     if VERBOSE:
-        print "\n", ht.now(), 'Result dataframe has been constructed...'
+        print("\n", ht.now(), 'Result dataframe has been constructed...')
 
     result_4digit = result.applymap(get_types)
     for iii in ["A1", "A2", "B1", "B2", "C1", "C2"]:
