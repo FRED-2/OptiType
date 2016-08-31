@@ -260,7 +260,7 @@ if __name__ == '__main__':
     os.makedirs(out_dir)
 
     if PYSAM_AVAILABLE:
-        extenion = 'bam'
+        extension = 'bam'
     else:
         extension = 'sam'
 
