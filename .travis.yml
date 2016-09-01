@@ -1,16 +1,15 @@
-sudo: required
-services:
-  - docker
+sudo: false
+
 language: python
 python:
-  - "2.7"
+- '2.7'
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test
+    - ubuntu-toolchain-r-test
     packages:
-      - coinor-cbc
-      
+    - glpk
+
 before_script:
 - wget http://packages.seqan.de/razers3/razers3-3.4.0-Linux-x86_64.tar.bz2
 - tar xf razers3-3.4.0-Linux-x86_64.tar.bz2
@@ -24,12 +23,5 @@ before_script:
 - export HDF5_DIR=/home/travis/build/FRED-2/OptiType/hdf5-1.8.17-linux-centos7-x86_64-gcc485-shared/
 - pip install tables
 - pip install pandas
-script:
-  python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/ -c ./test/test_config.ini
 
-after_success:
-  - if [ "$TRAVIS_BRANCH" == "master" ]; then
-    docker build -t fred2/optitype .;
-    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
-    docker push fred2/optitype;
-    fi
+script: python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/ -c ./test/test_config.ini
