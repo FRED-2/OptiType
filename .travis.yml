@@ -1,16 +1,23 @@
 sudo: required
 services:
-  - docker
+- docker
 language: python
 python:
-  - "2.7"
+- '2.7'
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test
+    - ubuntu-toolchain-r-test
     packages:
-      - coinor-cbc
-      
+    - coinor-cbc
+
+env:
+  global:
+    DOCKER_USER:
+      secure: fs7HXYZqzY1D8SL1MKWCgTJCXWe6x64YSZNSsQ10aQM89G8npbJiNkvfJEzrprGg++1YUtsOeMCRSOopFBxkzFIFascIbfPbt80BSVhzoATJGdKhPPx7azb/zeHtclJ8Lv6yG7JK/htflPTRDQoE7frFp6Z+WB+fVEtr2A807iiDlYzoXFVA6hTvFI1BCs463N0xCL6JgN/BoUayLkBSlyLsrSr/e14TRb9KbCLUV0jh+ToMEDXdcnTAGyPzbbXhoflAlZICxpgU5HsaaSoKM4HTL98I+ha3OpZA1srZCrGky5ojB6L48cOZPZpKIFGpBu6ktTq/pEcJ/AvWts5Kgqhk9x+X4h226FrQc8tIdzCUYD9UVc1cXFd70kxMfOKbJjLPICia18JZevPshgmV72ZXDdzYu/LBraeGU0pa/F62C0H6ERA8IJ/qJXoXhLg7AqboKZACHebEotEmlyPmg+lZhoEa8UKaRx6o4MXkwXG+VGkWawARIr0JoguEM9eI9aktT1bM/7vi112eST6uBrpeUh7+2J/ngxl8YT128YYRMmrd+meRTfs2bBtdnaofQXwmEE0B0A3EtzeUPxCwIwJd57udG8/8TzjpYLrsC85PJZL8fAVBLdRXtNeDT1czrvlbnmOo3Fc3GQ2U+0S9Bem3CVSxVlQ8Nidv36vvfTc=
+    DOCKER_PASSWORD:
+      secure: X+ceLL2G/RJGUFFkoaZMNlc1yHTVrvG6Cgm3A7262uxY0x80nGWUAUwp4ORdmk4Q+FMWJq6AM3AXypm4kXNuhw+nhOl6pztukMG477Jp9iDQuPBUqxXv6YskQitdWY1cxON63V5H+tjMODKTtUkWXK/OBeDeM8ZQm6SFVgWtk++CM3Ln4lK7VERBt7XahqUXXZM1yQ2UrAPGUMlizEhEtm3cGdLpTcllOnX3ZI9B5w0nn/ErN8AenTAqOI9sTdcona8GgNryGGahb8n8GPjA3ddSI+mJMwIPNJQ3utDLf1DudisnC0q+U29NcgDfuFDbXG3UN3SZsRcwhopkVR6SjvftmNRCE9PdwnNV5WhFzIvTou0DuN4r5y4jBmliUdj2UCmzn6Lg22sGj0e4Kfl/yH2KBcarFHPAtdpgGghMO7cbK2nIF8EdS2Ltle4jNpthtH4vo/Vs+UHUOwjAK58qgZc1gMysbpaQzm1t7WcsDrqXEaiMRTvZqfvSLbPgfCmFR73OKl76m+zeyK+M5imA9f8x7cqCztti4+AQMxTFWNXWuJh/pxUzyV9pNKeiHeOOBOw7SDFqO/OSgsJANXk9+3/lZbEat8LqbXzXuz9O1CKMM6waXmjP0Tno09fs0BBXTOnh510ieT7FnripXtcebJCas2Pk5SwXgCQM5oxY8IA=
+
 before_script:
 - wget http://packages.seqan.de/razers3/razers3-3.4.0-Linux-x86_64.tar.bz2
 - tar xf razers3-3.4.0-Linux-x86_64.tar.bz2
@@ -24,12 +31,10 @@ before_script:
 - export HDF5_DIR=/home/travis/build/FRED-2/OptiType/hdf5-1.8.17-linux-centos7-x86_64-gcc485-shared/
 - pip install tables
 - pip install pandas
-script:
-  python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/ -c ./test/test_config.ini
+
+script: python OptiTypePipeline.py -i ./test/rna/CRC_81_N_2_fished.fastq --rna -v
+  -o ./test/rna/ -c ./test/test_config.ini
 
 after_success:
-  - if [ "$TRAVIS_BRANCH" == "master" ]; then
-    docker build -t fred2/optitype .;
-    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
-    docker push fred2/optitype;
-    fi
+- if [ "$TRAVIS_BRANCH" == "master" ]; then docker build -t fred2/optitype .; docker
+  login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"; docker push fred2/optitype; fi
