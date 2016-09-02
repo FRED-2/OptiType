@@ -41,9 +41,21 @@ And the following Python modules:
 Note: CPLEX has a proprietary license but is free for academic use. See IBM's
 [academic initiative.](http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative)
 
+Installation via Docker
+-----------------------
 
-Installation
--------------
+1. Install Docker on your computer and make sure it works.
+
+2. Call `docker pull fred2/optitype` which will download the Docker image.
+
+3. You can use the image as followes:
+
+`docker run -v /path/to/data/folder:/data/ -t fred2/optitype -i input1 [input2] (-r|-d) -o /data/`
+
+OptiType uses the CBC-Solver and RazerS3 internally with one thread if no other configuration file is provided. RazerS3's binary can be found at `/usr/local/bin` within the Docker image. 
+
+Installation from Source
+------------------------
 1. Install all required software and libraries from the first list.
 
 2. Include SAMtools and your ILP solver in your `PATH` environment variable.
