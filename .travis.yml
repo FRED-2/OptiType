@@ -16,9 +16,9 @@ addons:
     - cmake
 
 before_script:
-- git clone https://github.com/seqan/seqan.git seqan-src \
-    && cd seqan-src \
-    && cmake -DCMAKE_BUILD_TYPE=Release \
+- git clone https://github.com/seqan/seqan.git seqan-src 
+    && cd seqan-src 
+    && cmake -DCMAKE_BUILD_TYPE=Release 
     && make razers3 
 - pip install six
 - pip install future
