@@ -6,6 +6,7 @@ python:
 - '3.3'
 - '3.4'
 - '3.5'
+env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
 addons:
   apt:
     sources:
@@ -16,6 +17,7 @@ addons:
     - git
     - cmake-data
     - cmake
+    - g++-5
 
 before_script:
 - git clone https://github.com/seqan/seqan.git seqan-src 
