@@ -24,6 +24,7 @@ before_script:
     && cd seqan-src 
     && cmake -DCMAKE_BUILD_TYPE=Release 
     && make razers3 
+    && cd ..
 - pip install six
 - pip install future
 - pip install numpy
