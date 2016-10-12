@@ -53,8 +53,9 @@ RUN pip install --upgrade pip && pip install \
     pysam \
     matplotlib \
     tables \
-    pandas
-
+    pandas \
+    future
+    
 #installing optitype form git repository (version Dec 09 2015) and wirtig config.ini
 RUN git clone https://github.com/FRED-2/OptiType.git \
     && sed -i -e '1i#!/usr/bin/env python\' OptiType/OptiTypePipeline.py \
