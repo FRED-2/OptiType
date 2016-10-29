@@ -111,7 +111,10 @@ import sys
 import subprocess
 import os
 import argparse
-import configparser
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 import time
 import datetime
 import pandas as pd
