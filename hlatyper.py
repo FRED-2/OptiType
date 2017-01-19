@@ -623,7 +623,7 @@ def calculate_coverage(alignment, features, alleles_to_plot, features_used):
                     pairing_info.loc[reads][allele]):
                 if not i_pairing:
                     continue  # or i_pairing = 4. Happens if one end maps to the allele but a different allele has a full paired hit.
-                coverage[bool(i_mismatches)][i_pairing-1][i_hitcount-1][i_pos-1:i_pos-1+i_read_length] += 1
+                coverage[int(bool(i_mismatches))][i_pairing-1][i_hitcount-1][i_pos-1:i_pos-1+i_read_length] += 1
 
         coverage_matrices.append((allele, coverage))
     return coverage_matrices

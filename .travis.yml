@@ -3,7 +3,6 @@ sudo: false
 language: python
 python:
 - '2.7'
-- '3.3'
 - '3.4'
 - '3.5'
 env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
