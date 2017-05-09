@@ -15,7 +15,7 @@
 #################################################################
 
 # Source Image
-FROM biodckr/biodocker
+FROM biocontainers/biocontainers:latest
 
 ################## BEGIN INSTALLATION ###########################
 USER root
