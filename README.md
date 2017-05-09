@@ -6,7 +6,7 @@ Precision HLA typing from next-generation sequencing data
 
 Authors: András Szolek, Benjamin Schubert, Christopher Mohr  
 Date: April 2014  
-Version: 1.0  
+Version: 1.3.1  
 License: OptiType is released under a three-clause BSD license
 
 
@@ -37,13 +37,26 @@ And the following Python modules:
 4. Pandas 0.16.2
 5. Pysam 0.8.3
 6. Matplotlib 1.4.3
+7. Future 0.15.2
 
 Note: CPLEX has a proprietary license but is free for academic use. See IBM's
 [academic initiative.](http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative)
 
+Installation via Docker
+-----------------------
 
-Installation
--------------
+1. Install Docker on your computer and make sure it works.
+
+2. Call `docker pull fred2/optitype` which will download the Docker image.
+
+3. You can use the image as followes:
+
+`docker run -v /path/to/data/folder:/data/ -t fred2/optitype -i input1 [input2] (-r|-d) -o /data/`
+
+OptiType uses the CBC-Solver and RazerS3 internally with one thread if no other configuration file is provided. RazerS3's binary can be found at `/usr/local/bin` within the Docker image. 
+
+Installation from Source
+------------------------
 1. Install all required software and libraries from the first list.
 
 2. Include SAMtools and your ILP solver in your `PATH` environment variable.
@@ -73,11 +86,12 @@ installation. It doesn't have to be permanent, but it has to be accessible
 when you install PyTables. On the bash shell it would be
 `export HDF5_DIR=/path/to/hdf5-1.8.15`
 
-7. Install PyTables and Pandas with
+7. Install PyTables, Pandas and Future with
 
     ```
     pip install tables
     pip install pandas
+    pip install future
     ```
 
 8. Create a configuration file following `config.ini.example`. You will find
