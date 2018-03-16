@@ -206,6 +206,10 @@ if __name__ == '__main__':
                       required=True,
                       help="Specifies the out directory to which all files should be written."
                       )
+    parser.add_argument('--prefix', '-p',
+                      default=None, dest="prefix", type=str,
+                      help="Specifies prefix of output files"
+                      )
     parser.add_argument('--verbose','-v',
                       required=False,
                       action="store_true",
@@ -259,8 +263,15 @@ if __name__ == '__main__':
                    'nuc': os.path.join(this_dir, 'data/hla_reference_rna.fasta')}
     MAPPING_CMD = config.get("mapping", "razers3") + " " + COMMAND
     date = datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d_%H_%M_%S')
-    out_dir = os.path.join(args.outdir, date)
-    os.makedirs(out_dir)
+    if args.prefix == None:
+        prefix = date
+        out_dir = os.path.join(args.outdir, date)
+    else:
+        prefix = args.prefix
+        out_dir = args.outdir
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
 
     if PYSAM_AVAILABLE:
         extension = 'bam'
@@ -273,8 +284,8 @@ if __name__ == '__main__':
     ref_type = "nuc" if args.rna else "gen"
     is_paired = len(args.input) > 1
     
-    out_csv = os.path.join(out_dir, ("%s_result.tsv" % date))
-    out_plot = os.path.join(out_dir, ("%s_coverage_plot.pdf" % date))
+    out_csv = os.path.join(out_dir, ("%s_result.tsv" % prefix))
+    out_plot = os.path.join(out_dir, ("%s_coverage_plot.pdf" % prefix))
 
     # mapping fished file to reference
     if not bam_input:
