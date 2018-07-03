@@ -166,6 +166,8 @@ optional arguments:
   --outdir OUTDIR, -o OUTDIR
                         Specifies the out directory to which all files should
                         be written.
+  --prefix PREFIX, -p PREFIX
+                        Specifies prefix of output files
   --verbose, -v         Set verbose mode on.
   --config CONFIG, -c CONFIG
                         Path to config file. Default: config.ini in the same
