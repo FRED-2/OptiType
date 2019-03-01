@@ -35,14 +35,14 @@ RUN apt-get update && apt-get install -y software-properties-common \
 
 #HLA Typing
 #OptiType dependecies
-RUN curl -O https://support.hdfgroup.org/ftp/HDF5/current18/bin/hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared.tar.gz \
-    && tar -xvf hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared.tar.gz \
-    && mv hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared/bin/* /usr/local/bin/ \
-    && mv hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared/lib/* /usr/local/lib/ \
-    && mv hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared/include/* /usr/local/include/ \
-    && mv hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared/share/* /usr/local/share/ \
-    && rm -rf hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared/ \
-    && rm -f hdf5-1.8.20-linux-centos7-x86_64-gcc485-shared.tar.gz
+RUN curl -O https://support.hdfgroup.org/ftp/HDF5/current18/bin/hdf5-1.8.21-Std-centos7-x86_64-shared_64.tar.gz \
+    && tar -xvf hdf5-1.8.21-Std-centos7-x86_64-shared_64.tar.gz \
+    && mv hdf5-1.8.21-Std-centos7-x86_64-shared_64/bin/* /usr/local/bin/ \
+    && mv hdf5-1.8.21-Std-centos7-x86_64-shared_64/lib/* /usr/local/lib/ \
+    && mv hdf5-1.8.21-Std-centos7-x86_64-shared_64/include/* /usr/local/include/ \
+    && mv hdf5-1.8.21-Std-centos7-x86_64-shared_64/share/* /usr/local/share/ \
+    && rm -rf hdf5-1.8.21-Std-centos7-x86_64-shared_64/ \
+    && rm -f hdf5-1.8.21-Std-centos7-x86_64-shared_64.tar.gz
 
 ENV LD_LIBRARY_PATH /usr/local/lib:$LD_LIBRARY_PATH
 ENV HDF5_DIR /usr/local/
