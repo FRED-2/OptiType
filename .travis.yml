@@ -6,7 +6,6 @@ python:
 - '2.7'
 - '3.5'
 - '3.6'
-- '3.7'
 env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
 addons:
   apt:
