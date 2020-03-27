@@ -429,7 +429,7 @@ if __name__ == '__main__':
                          columns=["A1", "A2", "B1", "B2", "C1", "C2", "nof_reads", "obj"],
                          header=["A1", "A2", "B1", "B2", "C1", "C2", "Reads", "Objective"])
     
-    hlatype = result.iloc[0][["A1", "A2", "B1", "B2", "C1", "C2"]].drop_duplicates().dropna()
+    hlatype = result.iloc[0].reindex(["A1", "A2", "B1", "B2", "C1", "C2"]).drop_duplicates().dropna()
     features_used = [('intron', 1), ('exon', 2), ('intron', 2), ('exon', 3), ('intron', 3)] \
                      if not args.rna else [('exon',2),('exon',3)]
     plot_variables = [pos, read_details, pos2, read_details2, (binary_p, binary_un, binary_mis)] if is_paired else [pos, read_details]
