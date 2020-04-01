@@ -111,9 +111,9 @@ import sys
 import subprocess
 import os
 import argparse
-try:
+if sys.version_info > (3,0):
     import configparser
-except ImportError:
+else:
     import ConfigParser as configparser
 import time
 import datetime
@@ -123,7 +123,6 @@ import hlatyper as ht
 import numpy as np
 from model import OptiType
 from collections import defaultdict
-
 
 # Try to import pysam, important for RazerS 3 output format
 try:
