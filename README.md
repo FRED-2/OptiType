@@ -6,7 +6,7 @@ Precision HLA typing from next-generation sequencing data
 
 Authors: András Szolek, Benjamin Schubert, Christopher Mohr  
 Date: April 2014  
-Version: 1.3.1  
+Version: 1.3.3  
 License: OptiType is released under a three-clause BSD license
 
 
