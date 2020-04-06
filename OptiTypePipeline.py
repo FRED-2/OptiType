@@ -227,7 +227,7 @@ if __name__ == '__main__':
             "See config.ini.example and note that its fields have changed recently.")
         sys.exit(-1)
 
-    config = configparser.SafeConfigParser(os.environ)
+    config = configparser.ConfigParser(os.environ)
     config.read(args.config.name)
 
     unpaired_weight = config.getfloat('behavior', 'unpaired_weight')

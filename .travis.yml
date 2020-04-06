@@ -1,22 +1,17 @@
-dist: trusty
+dist: bionic
 sudo: false
 
 language: python
 python:
 - '2.7'
 - '3.6'
-env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
+- '3.7'
+- '3.8'
+env: COMPILER_NAME=gcc CXX=g++ CC=gcc
 addons:
   apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
     packages:
     - coinor-cbc
-    - git
-    - cmake-data
-    - cmake
-    - g++-5
 
 before_script:
 - git clone https://github.com/seqan/seqan.git seqan-src 
