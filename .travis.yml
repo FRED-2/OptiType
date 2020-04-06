@@ -6,6 +6,7 @@ python:
 - '2.7'
 - '3.5'
 - '3.6'
+- '3.7'
 env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
 addons:
   apt:
@@ -29,6 +30,7 @@ before_script:
 - pip install future
 - pip install numpy
 - pip install pyomo
+- pip install --upgrade pip
 - pip install pysam
 - pip install matplotlib
 - wget https://support.hdfgroup.org/ftp/HDF5/current18/bin/hdf5-1.8.21-Std-centos7-x86_64-shared_64.tar.gz
