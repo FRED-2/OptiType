@@ -278,7 +278,7 @@ if __name__ == '__main__':
     else:
         extension = 'sam'
 
-    bam_paths = args.input if bam_input else [os.path.join(out_dir, ("%s_%i.%s" % (date, i+1, extension))) for i in range(len(args.input))]
+    bam_paths = args.input if bam_input else [os.path.join(out_dir, ("%s_%i.%s" % (prefix, i+1, extension))) for i in range(len(args.input))]
 
     # SETUP variables and OUTPUT samples
     ref_type = "nuc" if args.rna else "gen"
