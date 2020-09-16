@@ -1,5 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # coding=utf-8
+
 """
 ###################################################################
 
@@ -96,6 +97,7 @@ optional arguments:
                         be written
   --verbose, -v         Set verbose mode on.
 """
+
 from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
