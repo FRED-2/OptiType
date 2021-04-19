@@ -1,0 +1,45 @@
+A	gen	1_exon	73	1_intron	130	2_exon	270	2_intron	241	3_exon	276	3_intron	601	4_exon	276	4_intron	102	5_exon	117	5_intron	444	6_exon	33	6_intron	142	7_exon	48	7_intron	169	8_exon	5
+B	gen	1_exon	73	1_intron	129	2_exon	270	2_intron	254	3_exon	276	3_intron	575	4_exon	276	4_intron	104	5_exon	120	5_intron	441	6_exon	33	6_intron	106	7_exon	44
+C	gen	1_exon	73	1_intron	130	2_exon	270	2_intron	251	3_exon	276	3_intron	587	4_exon	276	4_intron	124	5_exon	138	5_intron	441	6_exon	33	6_intron	107	7_exon	48	7_intron	164	8_exon	5
+E	gen	1_exon	64	1_intron	130	2_exon	270	2_intron	244	3_exon	276	3_intron	621	4_exon	276	4_intron	124	5_exon	117	5_intron	750	6_exon	33	6_intron	104	7_exon	41	7_intron	165	8_exon	5
+F	gen	1_exon	64	1_intron	130	2_exon	270	2_intron	245	3_exon	276	3_intron	582	4_exon	276	4_intron	140	5_exon	117	5_intron	447	6_exon	33	6_intron	360	7_exon	5
+G	gen	1_exon	73	1_intron	129	2_exon	270	2_intron	227	3_exon	276	3_intron	599	4_exon	276	4_intron	122	5_exon	117	5_intron	445	6_exon	5
+H	gen	1_exon	79	1_intron	124	2_exon	270	2_intron	242	3_exon	276	3_intron	585	4_exon	278	4_intron	102	5_exon	117	5_intron	440	6_exon	33	6_intron	142	7_exon	47	7_intron	167	8_exon	5
+J	gen	1_exon	72	1_intron	130	2_exon	271	2_intron	248	3_exon	276	3_intron	595	4_exon	277	4_intron	122	5_exon	117	5_intron	443	6_exon	33	6_intron	143	7_exon	48	7_intron	167	8_exon	5
+K	gen	1_exon	72	1_intron	129	2_exon	270	2_intron	248	3_exon	275	3_intron	598	4_exon	281	4_intron	130	5_exon	117	5_intron	447	6_exon	27	6_intron	142	7_exon	48	7_intron	169	8_exon	5
+L	gen	1_exon	73	1_intron	117	2_exon	270	2_intron	249	3_exon	274	3_intron	596	4_exon	277	4_intron	107	5_exon	117	5_intron	439	6_exon	33	6_intron	119	7_exon	48	7_intron	165	8_exon	5
+N	gen	1_exon	162
+S	gen	1_exon	28	1_intron	104	2_exon	48	2_intron	161	3_exon	192
+T	gen	1_exon	276	1_intron	124	2_exon	102	2_intron	409	3_exon	33	3_intron	149	4_exon	48
+U	gen	1_exon	196
+V	gen	1_exon	72	1_intron	131	2_exon	270	2_intron	238	3_exon	196
+W	gen	1_exon	261	1_intron	582	2_exon	275	2_intron	127	3_exon	115	3_intron	385	4_exon	33	4_intron	149	5_exon	48	5_intron	164	6_exon	206
+Y	gen	1_exon	73	1_intron	130	2_exon	270	2_intron	241	3_exon	276	3_intron	599	4_exon	278	4_intron	102	5_exon	117	5_intron	438	6_exon	33	6_intron	142	7_exon	48	7_intron	168	8_exon	5
+DQA1	e2	1_intron	70	2_exon	249	2_intron	70
+DQA1	e3	2_intron	70	3_exon	282	3_intron	70
+DQB1	e2	1_intron	70	2_exon	270	2_intron	70
+DQB1	e3	2_intron	70	3_exon	282	3_intron	70
+DPA1	e2	1_intron	70	2_exon	246	2_intron	70
+DPA1	e3	2_intron	70	3_exon	282	3_intron	70
+DPB1	e2	1_intron	68	2_exon	264	2_intron	70
+DPB1	e3	2_intron	43	3_exon	282	3_intron	70
+DRB1	e2	1_intron	44	2_exon	270	2_intron	70
+DRB1	e3	2_intron	70	3_exon	282	3_intron	58
+DRB345	e2	1_intron	44	2_exon	270	2_intron	70
+DRB345	e3	2_intron	70	3_exon	282	3_intron	58
+DMA	e2	1_intron	70	2_exon	285	2_intron	70
+DMA	e3	2_intron	70	3_exon	279	3_intron	70
+DMB	e2	1_intron	70	2_exon	282	2_intron	70
+DMB	e3	2_intron	70	3_exon	285	3_intron	70
+DOA	e2	1_intron	70	2_exon	249	2_intron	70
+DOA	e3	2_intron	70	3_exon	282	3_intron	70
+DOB	e2	1_intron	70	2_exon	270	2_intron	70
+DOB	e3	2_intron	70	3_exon	282	3_intron	70
+DRA	e2	1_intron	70	2_exon	246	2_intron	70
+DRA	e3	2_intron	70	3_exon	282	3_intron	70
+DQA2	e2	1_intron	68	2_exon	249	2_intron	70
+DQA2	e3	2_intron	67	3_exon	282	3_intron	70
+DPA2	e2	1_intron	70	2_exon	245	2_intron	70
+DPA2	e3	2_intron	70	3_exon	282	3_intron	70
+DPB2	e2	1_intron	68	2_exon	264	2_intron	70
+DPB2	e3	2_intron	43	3_exon	281	3_intron	70

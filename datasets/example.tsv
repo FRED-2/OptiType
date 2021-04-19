@@ -1,0 +1,4 @@
+sample	reads1	reads2
+HG00357	example/HG00357_1.fq.gz	example/HG00357_2.fq.gz
+NA18534	example/NA18534_1.fq.gz	example/NA18534_2.fq.gz
+NA19723	example/NA19723_1.fq.gz	example/NA19723_2.fq.gz

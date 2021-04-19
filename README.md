@@ -1,213 +1,107 @@
-[![Build Status](https://travis-ci.org/FRED-2/OptiType.svg?branch=master)](https://travis-ci.org/FRED-2/OptiType)
-OptiType
-========
+## Installation
 
-Precision HLA typing from next-generation sequencing data
+1\. Set up an environment with all dependencies using the `conda` package manager
 
-Authors: András Szolek, Benjamin Schubert, Christopher Mohr  
-Date: April 2014  
-Version: 1.3.3  
-License: OptiType is released under a three-clause BSD license
+    conda create -n ot2env -c conda-forge -c bioconda python=3.8 numpy pandas scipy matplotlib snakemake pysam samtools yara
+    conda activate ot2env
 
 
-Introduction
--------------
-OptiType is a novel HLA genotyping algorithm based on integer linear
-programming, capable of producing accurate 4-digit HLA genotyping predictions
-from NGS data by simultaneously selecting all major and minor HLA Class I alleles.
+2\. Clone the repository
+
+    git clone --single-branch --branch hla-ligand-atlas https://github.com/FRED-2/OptiType.git ot2-snake
+    cd ot2-snake
+
+## Usage
+
+The HLA typing pipeline's input is a tsv file residing in `datasets/<batch_id>.tsv` containing sample ID's and the corresponding paired-end fastq files. Output will be organized into a folder structure derived from `<batch_id>` and the sample IDs inside the data sheet.
+
+Example files and folder structure:
+
+`datasets/project1.tsv`
+
+    sample  reads1  reads2
+    ABC123  ABC123_R1.fq.gz ABC123_R1.fq.gz
+    DEF456  DEF456_R1.fq.gz DEF456_R1.fq.gz
+    ZZZ001  ZZZ001_R1.fq.gz ZZZ001_R1.fq.gz
+
+`datasets/project2.tsv`
+
+    sample  reads1  reads2
+    sample1 linked_dir/SMP001_1.fastq   linked_dir/SMP001_2.fastq
+    sample2 linked_dir/SMP002_1.fastq   linked_dir/SMP002_2.fastq
+    sample3 linked_dir/SMP003_1.fastq   linked_dir/SMP003_2.fastq
+
+Directory structure
+
+    ┌───datasets/                     ┆
+    │   ├───project1.tsv              ┆
+    │   └───project2.tsv              ┆
+    │                                 ┆
+    ├───fastq/                        ┆
+    │   ├──linked_dir/                ┆
+    │   │   ├───SMP001_1.fastq        ┆
+    │   │   ├───SMP001_2.fastq        ┆
+    │   │   ├───SMP002_1.fastq        ┆ input
+    │   │   ├───SMP002_2.fastq        ┆
+    │   │   ├───SMP003_1.fastq        ┆
+    │   │   └───SMP003_2.fastq        ┆
+    │   ├───ABC123_R1.fq.gz           ┆
+    │   ├───ABC123_R2.fq.gz           ┆
+    │   ├───DEF456_R1.fq.gz           ┆
+    │   ├───DEF456_R2.fq.gz           ┆
+    │   ├───ZZZ001_R1.fq.gz           ┆
+    │   └───ZZZ001_R2.fq.gz           ┆
+    │
+    ├───mapped/                              ┆ intermediate
+    │
+    ├───results/                                    ┆
+    │   ├──project1/                                ┆
+    │   │   ├───ABC123/  result.tsv  covplots.pdf   ┆
+    │   │   ├───DEF456/  result.tsv  covplots.pdf   ┆
+    │   │   ├───ZZZ001/  result.tsv  covplots.pdf   ┆
+    │   │   └───all.tsv                             ┆ output
+    │   └──project2/                                ┆
+    │       ├───sample1/ result.tsv  covplots.pdf   ┆
+    │       ├───sample2/ result.tsv  covplots.pdf   ┆
+    │       ├───sample3/ result.tsv  covplots.pdf   ┆
+    │       └───all.tsv                             ┆
+    │
+    ├───ref_idx/
+    ├───py/
+    └───Snakefile
 
 
-Requirements
--------------
-OptiType uses the following software and libraries:
+The command `snakemake -k -j 8 results/project1/all.tsv` builds the target file `results/project1/all.tsv` by reading `datasets/project1.tsv`, processing all listed samples in `project1.tsv` and gathering their outputs in a single file, using up to 8 threads for the task. Individual samples can be processed by building their specific target files with `snakemake -j 8 results/project2/sample2/result.tsv`.
 
-1. [Python 2.7](https://www.python.org/)
-2. [RazerS 3.4](http://www.seqan.de/projects/razers/)
-3. [SAMtools 1.2](http://www.htslib.org/)
-4. [HDF5 1.8.15](https://www.hdfgroup.org/HDF5/)
-5. [CPLEX 12.5](http://www-01.ibm.com/software/commerce/optimization/cplex-optimizer/)
-   or other Pyomo-supported ILP solver ([GLPK](https://www.gnu.org/software/glpk/), 
-   [CBC](https://projects.coin-or.org/Cbc), ...)
+The fastq paths in the dataset tsv's shall be relative to the `fastq` directory. They can be hard- or symbolic links as well. Absolute paths pointing outside the directory structure altogether are also accepted in the dataset tsv's.
 
-And the following Python modules:
+The code is bundled with an example sheet and corresponding fastq files which can be run with `snakemake -k -j 8 results/example/all.tsv`
 
-1. NumPy 1.9.3
-2. Pyomo 4.2
-3. PyTables 3.2.2
-4. Pandas 0.16.2
-5. Pysam 0.8.3
-6. Matplotlib 1.4.3
-7. Future 0.15.2
+## Notes
 
-Note: CPLEX has a proprietary license but is free for academic use. See IBM's
-[academic initiative.](http://www-304.ibm.com/ibm/university/academic/pub/page/academic_initiative)
+Given a conda environment with `snakemake` available, but not the other dependencies, the necessary environment with all dependencies can be created on the fly with the `--use-conda` flag. The first execution of the pipeline will initialize a new environment with all dependencies, and subsequent executions will re-use this environment.
 
-Installation via Docker
------------------------
+Other powerful features of snakemake, such as [deploying the pipeline on a cluster](https://snakemake.readthedocs.io/en/stable/executing/cluster.html) can also be leveraged.
 
-1. Install Docker on your computer and make sure it works.
+---
 
-2. Call `docker pull fred2/optitype` which will download the Docker image.
+Coverage plots of individual samples are placed in their respective output folders. The coverage depth chart of each locus consists of the individual coverage plots of the two alleles mirrored about the x-axis, which also marks their distinguishing polymorphisms as ticks.
 
-3. You can use the image as followes:
+Reads contribute to the colored bands based on the following scheme:
 
-`docker run -v /path/to/data/folder:/data/ -t fred2/optitype -i input1 [input2] (-r|-d) -o /data/`
+* Reads exclusive to locus
+  * <span style="background-color: #84cc8f">green</span>: exclusive to one of the two alleles
+  * <span style="background-color: #51a1cc">blue</span>: attributed to both alleles (due to allele sequence identity)
+* Reads mapping to multiple loci
+  * <span style="background-color: #f97f7f">red</span>: exclusive to one allele
+  * <span style="background-color: #ffb66d">orange</span>: attributed to both alleles
 
-OptiType uses the CBC-Solver and RazerS3 internally with one thread if no other configuration file is provided. RazerS3's binary can be found at `/usr/local/bin` within the Docker image. 
+Bright shades stand for perfect alignments, light shades for mismatched alignments. <span style="background-color: #f2f2f2">Grey</span> bands in the background correspond to intron regions. HLA Class II predictions are limited to the exon 2+3 regions of the loci. Full allele names are displayed nonetheless, but they shall be seen as representatives of their ambiguity group.
 
-Installation from Source
-------------------------
-1. Install all required software and libraries from the first list.
+---
 
-2. Include SAMtools and your ILP solver in your `PATH` environment variable.
-They both have to be globally accessible every time you run OptiType, so make
-them permanent (put in in your `.bashrc` or similar shell startup script).
+The output tsv files also contain the [P-group](http://hla.alleles.org/alleles/p_groups.html) antigen binding domain designation of the predicted alleles. In certain contexts this representation may be preferable to four-digit genotypes.
 
-3. Add HDF5's `lib` directory to your `LD_LIBRARY_PATH`. Make sure it's
-permanent too.
+---
 
-4. Create and activate a Python virtual environment with the package
-[virtualenv](https://virtualenv.pypa.io/en/latest/). This will automatically
-install the package manager `pip` which you will need for the next steps.
-Always run OptiType from this virtual environment.
-
-5. Install NumPy, Pyomo, Pysam and Matplotlib with
-the following commands:
-
-    ```
-    pip install numpy
-    pip install pyomo
-    pip install pysam
-    pip install matplotlib
-    ```
-
-6. Create a new environment variable containing the path to your HDF5
-installation. It doesn't have to be permanent, but it has to be accessible
-when you install PyTables. On the bash shell it would be
-`export HDF5_DIR=/path/to/hdf5-1.8.15`
-
-7. Install PyTables, Pandas and Future with
-
-    ```
-    pip install tables
-    pip install pandas
-    pip install future
-    ```
-
-8. Create a configuration file following `config.ini.example`. You will find
-all necessary instructions in there. OptiType will look for the configuration
-file at `config.ini` in the same directory by default, but you can put it
-anywhere and pass it with the `-c` option when running OptiType.
-
-
-Usage
--------------
-
-Optional step zero: you might want to filter your sequencing data for
-HLA reads. Should you have to re-run OptiType multiple times on the same sample
-(different settings, etc.) it could save you time if instead of giving OptiType
-the full, multi-gigabyte sequencing data multiple times, you would rather give
-it the relevant reads only, on the order of megabytes.
-
-You can use any read mapper to do this step, although we suggest you use RazerS3.
-Its only drawback is that due to way RazerS3 was designed, it loads all reads
-into memory, which could be a problem on older, low-memory computing nodes.
-
-Make sure to filter your files correctly depending on whether you have DNA
-(exome, WGS) or RNA-Seq data. The reference fasta files are
-`data/hla_reference_dna.fasta` and `data/hla_reference_rna.fasta` respectively.
-Below is an example for DNA sequencing data:
-
-```
->razers3 -i 95 -m 1 -dr 0 -o fished_1.bam /path/to/OptiType/data/hla_reference_dna.fasta sample_1.fastq
-
->samtools bam2fq fished_1.bam > sample_1_fished.fastq
-
->rm fished_1.bam
-```
-
-If you have paired-end data, repeat this with the second ends' fastq file as well.
-Note: it's important that you filter the two ends individually. Don't use the
-read mapper's paired-end capabilities.
-
-After the optional filtering, OptiType can be called as follows:
-```
->python /path/to/OptiTypePipeline.py -i sample_fished_1.fastq [sample_fished_2.fastq]
-                    (--rna | --dna) [--beta BETA] [--enumerate N]
-                    [-c CONFIG] [--verbose] --outdir /path/to/out_dir/
-```
-
-This will produce a time-stamped directory inside the specified output directory
-containing a CSV file with the predicted optimal (and if enumerated, sub-optimal)
-HLA genotype, and a pdf file containing a coverage plot of the predicted alleles
-for diagnostic purposes.
-
-```
->python OptiTypePipeline.py --help  
-
-usage: OptiType [-h] --input FQ [FQ] (--rna | --dna) [--beta B]
-                [--enumerate N] --outdir OUTDIR [--verbose] [--config CONFIG]
-
-OptiType: 4-digit HLA typer
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --input FQ [FQ], -i FQ [FQ]
-                        .fastq file(s) (fished or raw) or .bam files stored
-                        for re-use, generated by an earlier OptiType run. One
-                        file: single-end mode, two files: paired-end mode.
-  --rna, -r             Use with RNA sequencing data.
-  --dna, -d             Use with DNA sequencing data.
-  --beta B, -b B        The beta value for for homozygosity detection (see
-                        paper). Default: 0.009. Handle with care.
-  --enumerate N, -e N   Number of enumerations. OptiType will output the
-                        optimal solution and the top N-1 suboptimal solutions
-                        in the results CSV. Default: 1
-  --outdir OUTDIR, -o OUTDIR
-                        Specifies the out directory to which all files should
-                        be written.
-  --prefix PREFIX, -p PREFIX
-                        Specifies prefix of output files
-  --verbose, -v         Set verbose mode on.
-  --config CONFIG, -c CONFIG
-                        Path to config file. Default: config.ini in the same
-                        directory as this script
-```
-
-Furthermore, depending on your settings in `config.ini` you can choose to keep
-the bam files OptiType produces when all-mapping reads against the reference:
-these will be stored in the output directory of your current run.
-
-Then, if you want to re-run OptiType on the same sample, you can give it those
-intermediate `.bam` files as input instead of `.fastq` files, and spare on the
-mapping part of the pipeline. Note: these `.bam` files have nothing to do with
-those produced during the filtering/fishing step.
-
-
-Test examples
--------------
-DNA data (paired end):
-```
-python OptiTypePipeline.py -i ./test/exome/NA11995_SRR766010_1_fished.fastq ./test/exome/NA11995_SRR766010_2_fished.fastq --dna -v -o ./test/exome/
-```
-
-RNA data (paired end):
-```
-python OptiTypePipeline.py -i ./test/rna/CRC_81_N_1_fished.fastq ./test/rna/CRC_81_N_2_fished.fastq --rna -v -o ./test/rna/
-```
-
-Contact
--------------
-András Szolek  
-szolek@informatik.uni-tuebingen.de  
-University of Tübingen, Applied Bioinformatics,  
-Center for Bioinformatics, Quantitative Biology Center,  
-and Dept. of Computer Science,  
-Sand 14, 72076 Tübingen, Germany
-
-
-Reference
--------------
-Szolek, A, Schubert, B, Mohr, C, Sturm, M, Feldhahn, M, and Kohlbacher, O (2014).
-OptiType: precision HLA typing from next-generation sequencing data
-Bioinformatics, 30(23):3310-6.
+The present release is limited to the detection of non-rare HLA alleles based on their [CWD 3.0](https://doi.org/10.1111/tan.13811) status, covering ~99% of known allelic diversity.

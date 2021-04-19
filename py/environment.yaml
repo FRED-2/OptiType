@@ -1,0 +1,13 @@
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - python==3.8
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - pysam
+  - samtools
+  - yara
