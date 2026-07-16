@@ -89,7 +89,6 @@ def main():
 @click.option(
     "--solver",
     type=click.Choice(["glpk", "cbc", "cplex"]),
-    default="glpk",
     envvar="OPTITYPE_SOLVER",
     help="ILP solver to use. Default: glpk.",
 )
@@ -189,7 +188,8 @@ def run(
     pipeline_config.razers3_args = razers3_args
     pipeline_config.yara_args = yara_args
     pipeline_config.mapping_threads = threads
-    pipeline_config.solver = solver
+    if solver is not None:
+        pipeline_config.solver = solver
     pipeline_config.ilp_threads = ilp_threads
     pipeline_config.delete_bam = not keep_bam
 
@@ -200,7 +200,7 @@ def run(
         click.echo(f"Sequence type: {seq_type}")
         click.echo(f"Output directory: {outdir}")
         click.echo(f"Mapper: {mapper}")
-        click.echo(f"Solver: {solver}")
+        click.echo(f"Solver: {pipeline_config.solver}")
         click.echo()
 
     try:
