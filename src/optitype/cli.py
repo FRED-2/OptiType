@@ -173,7 +173,7 @@ def run(
       # With custom settings
       optitype run -i reads.fq --dna -o results/ --solver cbc --threads 8
     """
-    from optitype.pipeline import PipelineConfig, load_config, load_mapper_config, run_pipeline
+    from optitype.pipeline import LowCoverageError, PipelineConfig, load_config, load_mapper_config, run_pipeline
 
     # Resolve razers3 path (--razers3 option or search PATH)
     if razers3 is None:
@@ -237,6 +237,9 @@ def run(
         click.echo(f"Results written to: {result.output_csv}")
         click.echo(f"Coverage plot: {result.output_plot}")
 
+    except LowCoverageError as e:
+        click.secho(f"WARNING: {e}", fg="yellow", err=True)
+        return
     except Exception as e:
         raise click.ClickException(str(e)) from None
 

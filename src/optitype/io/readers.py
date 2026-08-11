@@ -190,11 +190,13 @@ def pysam_to_dataframe(samfile: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     logger.debug("\n %s %d reads loaded. Creating dataframe...", elapsed(), len(hits))
 
-    pos_df = pd.DataFrame.from_dict(hits, orient="index")
-    pos_df.columns = sam.references[:]
+    pos_df = pd.DataFrame.from_dict(hits, orient="index", columns=sam.references[:])
 
-    details_df = pd.DataFrame.from_dict(read_details, orient="index")
-    details_df.columns = ["mismatches", "read_length"]
+    details_df = pd.DataFrame.from_dict(
+        read_details,
+        orient="index",
+        columns=["mismatches", "read_length"],
+    )
 
     if hit_counter > 0:
         logger.debug(

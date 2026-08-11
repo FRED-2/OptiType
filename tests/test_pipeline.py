@@ -12,6 +12,7 @@ from optitype import hlatyper as ht
 from optitype.io.data import load_reference_data
 from optitype.pipeline import (
     PipelineConfig,
+    LowCoverageError,
     run_pipeline,
     load_config,
     load_mapper_config,
@@ -173,6 +174,33 @@ class TestPipelineValidation:
         f.write_text("")
         with pytest.raises(ValueError, match="enumerate"):
             run_pipeline([str(f)], "dna", str(tmp_path), enumerate_count=0)
+
+    def test_low_coverage_writes_failure_tsv(self, tmp_path):
+        out_prefix = "lowcov"
+        out_csv = tmp_path / f"{out_prefix}_result.tsv"
+
+        with patch(
+            "optitype.pipeline.pysam_to_dataframe",
+            return_value=(
+                pd.DataFrame(columns=["HLA:A*01:01"]),
+                pd.DataFrame(columns=["mismatches", "read_length"]),
+            ),
+        ):
+            with pytest.raises(LowCoverageError, match="low coverage"):
+                run_pipeline(
+                    input_files=["sample.bam"],
+                    seq_type="dna",
+                    output_dir=str(tmp_path),
+                    prefix=out_prefix,
+                    config=PipelineConfig(),
+                    verbose=False,
+                )
+
+        assert out_csv.exists()
+        failed = pd.read_csv(out_csv, sep="\t")
+        assert failed.loc[0, "Status"] == "FAILED"
+        assert "low coverage" in failed.loc[0, "Message"]
+        assert int(failed.loc[0, "Reads"]) == 0
 
 
 class TestMapperConfig:

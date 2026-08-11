@@ -68,6 +68,29 @@ class PipelineResult:
     output_plot: str
 
 
+class LowCoverageError(RuntimeError):
+    """Raised when HLA typing cannot proceed due to insufficient mapped HLA reads."""
+
+
+def _write_low_coverage_result(out_csv: str, message: str) -> None:
+    """Write a structured failure TSV so callers get an explicit output artifact."""
+    failed = pd.DataFrame([
+        {
+            "A1": None,
+            "A2": None,
+            "B1": None,
+            "B2": None,
+            "C1": None,
+            "C2": None,
+            "Reads": 0,
+            "Objective": None,
+            "Status": "FAILED",
+            "Message": message,
+        }
+    ])
+    failed.to_csv(out_csv, sep="\t", index=False)
+
+
 def get_num_threads(configured_threads: int) -> int:
     """Get the number of threads to use, capped by available CPUs."""
     try:
@@ -324,6 +347,15 @@ def run_pipeline(
         pos2, read_details2 = pysam_to_dataframe(bam_paths[1])
         binary2 = np.sign(pos2)
 
+        if pos.empty and pos2.empty:
+            msg = (
+                "HLA typing was not possible due to low coverage: no mapped HLA reads "
+                "were found in either input read file."
+            )
+            logger.error(msg)
+            _write_low_coverage_result(out_csv, msg)
+            raise LowCoverageError(f"{msg} See {out_csv}.")
+
         if not bam_input and config.delete_bam:
             os.remove(bam_paths[0])
             os.remove(bam_paths[1])
@@ -361,14 +393,41 @@ def run_pipeline(
     else:
         pos, read_details = pysam_to_dataframe(bam_paths[0])
 
+        if pos.empty:
+            msg = (
+                "HLA typing was not possible due to low coverage: no mapped HLA reads "
+                "were found in the input file."
+            )
+            logger.error(msg)
+            _write_low_coverage_result(out_csv, msg)
+            raise LowCoverageError(f"{msg} See {out_csv}.")
+
         if not bam_input and config.delete_bam:
             os.remove(bam_paths[0])
 
         binary = np.sign(pos)
 
+    if binary.shape[0] == 0:
+        msg = (
+            "HLA typing was not possible due to low coverage: no usable mapped HLA reads "
+            "remain after read pairing/selection."
+        )
+        logger.error(msg)
+        _write_low_coverage_result(out_csv, msg)
+        raise LowCoverageError(f"{msg} See {out_csv}.")
+
     # Filter to frequent alleles
     alleles_to_keep = [col for col in binary.columns if _is_frequent(col, table)]
     binary = binary[alleles_to_keep]
+
+    if binary.shape[1] == 0:
+        msg = (
+            "HLA typing was not possible due to low coverage: no informative HLA allele "
+            "hits remained after filtering."
+        )
+        logger.error(msg)
+        _write_low_coverage_result(out_csv, msg)
+        raise LowCoverageError(f"{msg} See {out_csv}.")
 
     logger.debug("%s Temporary pruning of identical rows and columns", elapsed())
 
@@ -380,6 +439,15 @@ def run_pipeline(
     logger.debug("%s Determining minimal set of non-overshadowed alleles", elapsed())
 
     minimal_alleles = ht.prune_overshadowed_alleles(temp_pruned)
+
+    if len(minimal_alleles) == 0:
+        msg = (
+            "HLA typing was not possible due to low coverage: no minimal informative "
+            "alleles could be retained."
+        )
+        logger.error(msg)
+        _write_low_coverage_result(out_csv, msg)
+        raise LowCoverageError(f"{msg} See {out_csv}.")
 
     logger.debug("%s Keeping only the minimal number of required alleles %s", elapsed(), minimal_alleles.shape)
 

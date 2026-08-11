@@ -6,6 +6,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from optitype.cli import main
+from optitype.pipeline import LowCoverageError
 
 
 def test_cli_help():
@@ -75,3 +76,29 @@ def test_cli_run_yara_missing_binary(tmp_path):
         )
     assert result.exit_code != 0
     assert "yara_mapper" in result.output
+
+
+def test_cli_run_low_coverage_reports_reason_and_result_path(tmp_path):
+    """CLI should surface low-coverage reason and result TSV path to users."""
+    fq = tmp_path / "reads.fq"
+    fq.write_text("@read1\nACGT\n+\nIIII\n")
+
+    outdir = tmp_path / "out"
+    prefix = "lowcov"
+    out_csv = outdir / f"{prefix}_result.tsv"
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    out_csv.write_text("Status\tMessage\nFAILED\tlow coverage\n")
+
+    msg = f"HLA typing was not possible due to low coverage. See {out_csv}."
+
+    runner = CliRunner()
+    with patch("optitype.pipeline.run_pipeline", side_effect=LowCoverageError(msg)):
+        result = runner.invoke(
+            main,
+            ["run", "-i", str(fq), "--dna", "-o", str(outdir), "--prefix", prefix],
+        )
+
+    assert result.exit_code == 0
+    assert "warning" in result.output.lower()
+    assert "low coverage" in result.output.lower()
+    assert str(out_csv) in result.output
